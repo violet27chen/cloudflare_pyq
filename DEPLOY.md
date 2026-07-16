@@ -1,120 +1,73 @@
 # Moments - Deployment Guide
 
-Deploy the full stack: Supabase (data) + Cloudflare Worker (API) + Cloudflare Pages (frontend).
+Deploy the whole app from a single Cloudflare Worker: API + built frontend + images, backed by **D1** (SQLite) and **R2**.
+
+## Architecture
+
+A single Cloudflare Worker (`moments-api`) serves everything:
+
+- `/` and `/admin/`  → built frontend (Astro static output, served via Static Assets)
+- `/api/*`           → Hono API (posts, auth, upload, stats)
+- `/img/*`           → R2 images, served same-origin
+
+Data lives in **D1** (SQLite): `posts`, `post_images`, `likes`.
+Images live in **R2**: bucket `moments-images`.
+Admin auth is password-based: `POST /api/auth/session` returns a JWT signed with `ADMIN_JWT_SECRET`.
 
 ## Prerequisites
 
 - Cloudflare account (free tier works)
-- Supabase account (free tier works)
-- Node.js 20+ and pnpm installed locally
-- `wrangler` CLI authenticated: `wrangler login`
+- Node.js 20+ and pnpm
+- `wrangler` authenticated: `wrangler login`
 
-## Step 1: Supabase
+## One-click (Deploy to Cloudflare button)
 
-Follow [`supabase/README.md`](./supabase/README.md):
+The README badge starts Cloudflare's deploy flow. The repo is a monorepo (the Worker lives in `worker/`), so if the flow doesn't pick up `worker/wrangler.toml`, follow the manual steps below.
 
-1. Create a Supabase project.
-2. Run `supabase/schema.sql` in the SQL editor.
-3. (Optional) Run `supabase/seed.sql` for sample data.
-4. Create the author account in Authentication > Users.
-5. Note down: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`.
-
-## Step 2: Cloudflare Worker (API)
+## Manual deploy
 
 ```bash
+# 1. Clone & install
+git clone https://github.com/violet27chen/cloudflare_pyq
+cd cloudflare_pyq && pnpm install
+
+# 2. Create resources
+wrangler d1 create moments
+wrangler r2 bucket create moments-images
+#   -> copy the D1 database_id into worker/wrangler.toml:
+#      [[d1_databases]] binding = "DB" database_name = "moments" database_id = "<id>"
+
+# 3. Secrets (never commit)
+wrangler secret put ADMIN_JWT_SECRET --name moments-api   # e.g. openssl rand -hex 32
+wrangler secret put ADMIN_PASSWORD --name moments-api     # your admin login password
+
+# 4. Schema + seed (REMOTE D1 — do not omit --remote)
 cd worker
+wrangler d1 execute moments --remote --file=./db/schema.sql
+wrangler d1 execute moments --remote --file=./db/seed.sql
 
-# Set secrets (never commit these)
-wrangler secret put SUPABASE_URL
-wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-wrangler secret put ADMIN_JWT_SECRET   # generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-wrangler secret put STORAGE_BUCKET     # value: post-images
-
-# Deploy
+# 5. Deploy (builds frontend, then deploys the Worker)
 pnpm deploy
 ```
 
-Note the Worker URL (e.g. `https://moments-api.<your-subdomain>.workers.dev`).
-
-## Step 3: Cloudflare Pages (Frontend)
-
-### Option A: Git integration (recommended)
-
-1. Push this repo to GitHub/GitLab.
-2. Cloudflare Dashboard > Pages > Create project > Connect to Git.
-3. Build settings:
-   - **Framework preset**: Astro
-   - **Build command**: `cd frontend && pnpm build`
-   - **Build output directory**: `frontend/dist`
-   - **Root directory**: `/` (repo root)
-4. Environment variables (Pages dashboard > Settings > Environment variables):
-   - `PUBLIC_API_BASE` = your Worker URL (e.g. `https://moments-api.xxx.workers.dev`)
-   - `PUBLIC_AUTHOR_NAME` = your display name (e.g. `L.`)
-   - `PUBLIC_SUPABASE_URL` = your Supabase project URL
-   - `PUBLIC_SUPABASE_ANON_KEY` = your Supabase anon key
-
-### Option B: Direct upload
+## Verify
 
 ```bash
-cd frontend
-pnpm build
-wrangler pages deploy dist --project-name=moments
+curl https://<your-subdomain>.workers.dev/api/health
+curl https://<your-subdomain>.workers.dev/api/posts
+# open https://<your-subdomain>.workers.dev/       (feed)
+# open https://<your-subdomain>.workers.dev/admin/ (log in with ADMIN_PASSWORD)
 ```
 
-Then set the same environment variables in the Pages dashboard.
+## Custom domain (optional)
 
-## Step 4: Custom domain (optional)
-
-1. Pages dashboard > your project > Custom domains > Add domain.
-2. Worker dashboard > your worker > Triggers > Custom domains > Add `api.yourdomain.com`.
-3. Update `PUBLIC_API_BASE` to `https://api.yourdomain.com`.
-
-## Step 5: Verify
-
-```bash
-# Health check
-curl https://your-worker.workers.dev/api/health
-
-# Feed (should return posts or empty list)
-curl https://your-worker.workers.dev/api/posts
-
-# Frontend
-open https://your-pages-project.pages.dev
-```
-
-## Architecture recap
-
-```
-Browser
-  |
-  +-- Cloudflare Pages (Astro + React)
-  |     /          -> public feed (SSG + client islands)
-  |     /admin     -> author panel (SPA)
-  |
-  +-- Cloudflare Worker (Hono)
-  |     /api/posts       GET  (public, cursor pagination)
-  |     /api/posts/:id   GET  (public)
-  |     /api/posts       POST (author JWT)
-  |     /api/posts/:id   PATCH/DELETE (author JWT)
-  |     /api/posts/:id/like  POST/DELETE (visitor)
-  |     /api/upload      POST (author JWT, multipart)
-  |     /api/auth/session POST (exchange Supabase JWT)
-  |     /api/stats       GET  (author JWT)
-  |
-  +-- Supabase
-        PostgreSQL  (posts, post_images, likes + RLS)
-        Storage     (post-images bucket, public read)
-        Auth        (single author account)
-```
+Worker dashboard > your worker > Triggers > Custom domains > Add `moments.yourdomain.com`.
 
 ## Security checklist
 
-- [x] RLS enabled on all tables (public read, no anon write)
-- [x] Unique constraint on (post_id, visitor_id) prevents duplicate likes
 - [x] Author mutations require JWT (Moments session token)
+- [x] Unique constraint on (post_id, visitor_id) prevents duplicate likes
 - [x] Image upload validates MIME type + size (8MB max)
-- [x] Rate limiting on like endpoints (10/min per IP)
-- [x] Parameterized queries (Supabase client, no raw SQL from user input)
-- [x] CORS configured for same-origin + explicit origins
-- [x] Service role key never exposed to browser
-- [x] Turnstile placeholder ready (X-Turnstile-Token header accepted in CORS)
+- [x] Rate limiting on like endpoints (10/min per IP, falls back to in-memory)
+- [x] Parameterized D1 queries (no raw SQL from user input)
+- [x] Secrets never committed; D1/R2 accessed only from the Worker
