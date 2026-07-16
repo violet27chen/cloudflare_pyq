@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+frontend/dist/
+worker/dist/
+
+# Astro / Wrangler caches
+.astro/
+.wrangler/
+
+# Local env / secrets (NEVER commit)
+.env
+.env.*
+.dev.vars
+*.local
+
+# WorkBuddy internal
+.workbuddy/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log

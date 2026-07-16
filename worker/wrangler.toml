@@ -1,0 +1,18 @@
+name = "moments-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Local dev only. Real secrets go in `wrangler secret put`, never committed.
+[vars]
+ENVIRONMENT = "development"
+
+# Routes /api/* -> this Worker in production are configured in the Cloudflare
+# dashboard or via the Pages _routes.json reverse-proxy. See deploy docs.
+
+# Bindings documented in src/types.ts (Env interface).
+# Required secrets (set with `wrangler secret put <NAME>`):
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   ADMIN_JWT_SECRET        (used to sign the short-lived author session token)
+#   STORAGE_BUCKET          (Supabase Storage bucket name, e.g. "post-images")

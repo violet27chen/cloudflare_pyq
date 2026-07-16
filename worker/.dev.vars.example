@@ -1,0 +1,9 @@
+# Local Worker secrets for `wrangler dev`.
+# Copy to `.dev.vars` (gitignored) and fill in from your Supabase project.
+# NEVER commit `.dev.vars`.
+
+SUPABASE_URL="https://YOUR-PROJECT.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+ADMIN_JWT_SECRET="generate-with-node-e-crypto-randomBytes-32-toString-hex"
+STORAGE_BUCKET="post-images"
+ENVIRONMENT="development"

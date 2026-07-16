@@ -1,0 +1,24 @@
+{
+  "name": "moments",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A single-author public moments feed. Only the author posts; everyone can read and like.",
+  "type": "module",
+  "packageManager": "pnpm@11.6.0",
+  "scripts": {
+    "dev": "pnpm --filter ./frontend dev",
+    "dev:worker": "pnpm --filter ./worker dev",
+    "build": "pnpm -r --filter=./frontend... build && pnpm -r --filter=./worker... build",
+    "build:frontend": "pnpm --filter ./frontend build",
+    "build:worker": "pnpm --filter ./worker build",
+    "preview": "pnpm --filter ./frontend preview",
+    "typecheck": "pnpm -r typecheck",
+    "deploy:worker": "pnpm --filter ./worker deploy"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

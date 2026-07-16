@@ -1,0 +1,12 @@
+packages:
+  - 'frontend'
+  - 'worker'
+
+allowBuilds:
+  sharp: true
+
+# pnpm 11: native build scripts must be explicitly approved here.
+onlyBuiltDependencies:
+  - esbuild
+  - workerd
+  - sharp

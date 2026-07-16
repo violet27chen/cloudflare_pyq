@@ -1,0 +1,9 @@
+---
+import BaseLayout from '@layouts/BaseLayout.astro';
+import { Admin } from '@components/Admin';
+import '../styles/global.css';
+---
+
+<BaseLayout title="Admin - Moments">
+  <Admin client:load />
+</BaseLayout>

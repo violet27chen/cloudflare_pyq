@@ -1,0 +1,271 @@
+@import 'tailwindcss';
+
+/* ============================================================
+   MOMENTS - Design Tokens
+   Apple-style minimal social feed. Warm monochrome + single
+   saturated rose accent. Self-hosted Geist (no Inter, no
+   external Google Fonts link).
+   ============================================================ */
+
+/* ---------- Self-hosted Geist with graceful fallback ----------
+   We prefer a local Geist installation (Apple devices have it) and try a
+   self-hosted variable font file as second choice. If neither is available,
+   the browser falls back to the system stack defined on --font-sans and
+   --font-mono without breaking the layout.
+
+   To use the self-hosted files, download them to public/fonts/ from:
+     https://github.com/vercel/geist-font/raw/main/packages/next/src/fonts/Geist-Variable.woff2
+     https://github.com/vercel/geist-font/raw/main/packages/next/src/fonts/GeistMono-Variable.woff2
+*/
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src:
+    local('Geist'),
+    local('Geist Variable'),
+    url('/fonts/Geist-Variable.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src:
+    local('Geist Mono'),
+    local('Geist Mono Variable'),
+    url('/fonts/GeistMono-Variable.woff2') format('woff2-variations');
+}
+
+/* ---------- Tailwind v4 theme tokens ---------- */
+@theme {
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* Warm monochrome scale (NOT pure black / pure white) */
+  --color-canvas: #fbfbfa; /* warm bone background */
+  --color-surface: #ffffff; /* card surface */
+  --color-surface-2: #f7f6f3; /* subtle raised surface */
+  --color-ink: #18181a; /* off-black primary text */
+  --color-ink-soft: #3f3f46; /* secondary text */
+  --color-ink-muted: #787774; /* muted meta text */
+  --color-hairline: rgba(0, 0, 0, 0.06); /* 1px dividers */
+
+  /* Single accent - saturated Apple-style rose, locked across whole page */
+  --color-accent: #ff3b5c;
+  --color-accent-soft: #ffe4ea;
+  --color-accent-ink: #b3123a;
+
+  /* Dark mode counterparts */
+  --color-canvas-dark: #0e0e10;
+  --color-surface-dark: #161618;
+  --color-surface-2-dark: #1c1c1f;
+  --color-ink-dark: #f4f4f5;
+  --color-ink-soft-dark: #c4c4c8;
+  --color-ink-muted-dark: #8a8a90;
+  --color-hairline-dark: rgba(255, 255, 255, 0.08);
+
+  /* Shape consistency lock - ONE radius scale for the whole app */
+  --radius-card: 16px;
+  --radius-control: 12px;
+  --radius-pill: 9999px;
+}
+
+/* ---------- Base layer ---------- */
+@layer base {
+  :root {
+    color-scheme: light dark;
+    --bg: var(--color-canvas);
+    --fg: var(--color-ink);
+    --fg-soft: var(--color-ink-soft);
+    --fg-muted: var(--color-ink-muted);
+    --card: var(--color-surface);
+    --card-2: var(--color-surface-2);
+    --line: var(--color-hairline);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: var(--color-canvas-dark);
+      --fg: var(--color-ink-dark);
+      --fg-soft: var(--color-ink-soft-dark);
+      --fg-muted: var(--color-ink-muted-dark);
+      --card: var(--color-surface-dark);
+      --card-2: var(--color-surface-2-dark);
+      --line: var(--color-hairline-dark);
+    }
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+    letter-spacing: -0.011em;
+    min-height: 100dvh;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  ::selection {
+    background-color: var(--color-accent-soft);
+    color: var(--color-accent-ink);
+  }
+
+  /* Focus ring - accessible, accent-tinted */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* ---------- Reusable component primitives ---------- */
+@layer components {
+  /* Card - single radius system, tinted soft shadow (no pure-black drop) */
+  .m-card {
+    background-color: var(--card);
+    border-radius: var(--radius-card);
+    border: 1px solid var(--line);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.02),
+      0 2px 24px rgba(0, 0, 0, 0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    .m-card {
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        0 2px 24px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  /* Apple Liquid Glass - WEB APPROXIMATION (not an official package).
+     backdrop-filter + layered borders + highlight. Solid fallback under
+     prefers-reduced-transparency. */
+  .m-glass {
+    position: relative;
+    background: rgba(251, 251, 250, 0.72);
+    backdrop-filter: blur(24px) saturate(180%) contrast(1.05);
+    -webkit-backdrop-filter: blur(24px) saturate(180%) contrast(1.05);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      0 8px 32px rgba(0, 0, 0, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    .m-glass {
+      background: rgba(14, 14, 16, 0.72);
+      border-color: rgba(255, 255, 255, 0.08);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .m-glass {
+      background: var(--color-canvas);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+
+  /* Primary button - ink fill, micro scale on active */
+  .m-btn-primary {
+    background-color: var(--color-ink);
+    color: var(--color-canvas);
+    border-radius: var(--radius-control);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    transition:
+      transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+      background-color 0.2s ease;
+  }
+  .m-btn-primary:hover {
+    background-color: #333335;
+  }
+  .m-btn-primary:active {
+    transform: scale(0.98);
+  }
+  @media (prefers-color-scheme: dark) {
+    .m-btn-primary {
+      background-color: var(--color-ink-dark);
+      color: var(--color-canvas-dark);
+    }
+    .m-btn-primary:hover {
+      background-color: #e4e4e7;
+    }
+  }
+
+  /* Meta text - mono, muted, for timestamps & counts */
+  .m-meta {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--fg-muted);
+    letter-spacing: 0.01em;
+  }
+}
+
+/* ---------- Utility: skeleton shimmer ---------- */
+@layer utilities {
+  @keyframes m-shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+  .m-skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--card-2);
+    border-radius: var(--radius-control);
+  }
+  .m-skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.55),
+      transparent
+    );
+    animation: m-shimmer 1.6s infinite;
+  }
+  @media (prefers-color-scheme: dark) {
+    .m-skeleton::after {
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.06),
+        transparent
+      );
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .m-skeleton::after {
+      animation: none;
+    }
+  }
+
+  /* Blur-up image loading */
+  .m-img-blurup {
+    filter: blur(18px);
+    transition: filter 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .m-img-blurup.is-loaded {
+    filter: blur(0);
+  }
+}
