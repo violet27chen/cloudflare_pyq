@@ -24,3 +24,6 @@ worker/dist/
 .DS_Store
 Thumbs.db
 *.log
+
+# Misc temp files
+_tmp_*

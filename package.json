@@ -13,7 +13,8 @@
     "build:worker": "pnpm --filter ./worker build",
     "preview": "pnpm --filter ./frontend preview",
     "typecheck": "pnpm -r typecheck",
-    "deploy:worker": "pnpm --filter ./worker deploy"
+    "deploy:worker": "pnpm build:frontend && pnpm --filter ./worker deploy",
+    "deploy": "pnpm deploy:worker"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

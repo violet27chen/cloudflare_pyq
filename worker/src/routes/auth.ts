@@ -1,21 +1,16 @@
 import { Hono } from 'hono';
 import type { AppType } from '../types';
-import { createServiceClient } from '../utils/supabase';
-import {
-  verifySupabaseAccessToken,
-  issueSessionToken,
-} from '../utils/jwt';
+import { issueSessionToken } from '../utils/jwt';
 import { ok, fail, ERR } from '../utils/response';
 
 /**
  * Auth route.
  *
- * The author logs in via Supabase Auth from /admin (anon key only, safe to
- * expose). The browser gets a Supabase access_token, sends it here, and
- * receives a short-lived Moments session token that the Worker's
- * requireAuthor middleware accepts.
+ * The author logs in with the ADMIN_PASSWORD from /admin, and the browser
+ * exchanges it here for a short-lived Moments session token (signed with
+ * ADMIN_JWT_SECRET) used on all mutations.
  *
- *   POST /session   { supabase_access_token }  -> { token, expires_in }
+ *   POST /session   { password }  -> { token, expires_in }
  */
 export const auth = new Hono<AppType>();
 
@@ -28,36 +23,15 @@ auth.post('/session', async (c) => {
   } catch {
     return fail(c, 400, ERR.BAD_REQUEST, 'Request body must be JSON.');
   }
-  const raw = (body as Record<string, unknown>)?.supabase_access_token;
-  if (typeof raw !== 'string' || raw.length < 10) {
-    return fail(c, 400, ERR.BAD_REQUEST, 'supabase_access_token is required.');
+  const raw = (body as Record<string, unknown>)?.password;
+  if (typeof raw !== 'string' || raw.length === 0) {
+    return fail(c, 400, ERR.BAD_REQUEST, 'password is required.');
+  }
+  if (raw !== c.env.ADMIN_PASSWORD) {
+    return fail(c, 401, ERR.UNAUTHORIZED, 'Incorrect password.');
   }
 
-  // Verify the Supabase JWT against JWKS.
-  const userId = await verifySupabaseAccessToken(c.env, raw);
-  if (!userId) {
-    return fail(
-      c,
-      401,
-      ERR.UNAUTHORIZED,
-      'Supabase token is invalid or expired. Please sign in again.',
-    );
-  }
-
-  // Optional: ensure the user is the single allowed author.
-  // The Supabase project is single-user, but for defense-in-depth we check
-  // that the user exists in auth.users via the service-role client.
-  const supabase = createServiceClient(c.env);
-  const { data: user, error: userErr } = await supabase.auth.admin.getUserById(
-    userId,
-  );
-  if (userErr) throw userErr;
-  if (!user || !user.user.email) {
-    return fail(c, 403, ERR.FORBIDDEN, 'User not found in auth system.');
-  }
-
-  // Issue a Moments session token.
-  const token = await issueSessionToken(c.env, userId);
+  const token = await issueSessionToken(c.env, 'author');
   return ok(c, { token, expires_in: SESSION_TTL_SECONDS }, 201);
 });
 

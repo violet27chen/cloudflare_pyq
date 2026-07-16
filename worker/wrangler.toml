@@ -8,12 +8,23 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 ENVIRONMENT = "development"
 
-# Routes /api/* -> this Worker in production are configured in the Cloudflare
-# dashboard or via the Pages _routes.json reverse-proxy. See deploy docs.
+# Serve the built frontend (frontend/dist). SPA fallback for client routes.
+[assets]
+directory = "../frontend/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
 
-# Bindings documented in src/types.ts (Env interface).
+# D1 (SQLite) database holding posts / post_images / likes.
+[[d1_databases]]
+binding = "DB"
+database_name = "moments"
+database_id = "8ea9cdef-6d06-436e-b45a-599cc928b5ab"
+
+# R2 bucket for post images (served same-origin via /img).
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "moments-images"
+
 # Required secrets (set with `wrangler secret put <NAME>`):
-#   SUPABASE_URL
-#   SUPABASE_SERVICE_ROLE_KEY
-#   ADMIN_JWT_SECRET        (used to sign the short-lived author session token)
-#   STORAGE_BUCKET          (Supabase Storage bucket name, e.g. "post-images")
+#   ADMIN_JWT_SECRET   signs the short-lived author session token
+#   ADMIN_PASSWORD     single author password for POST /api/auth/session

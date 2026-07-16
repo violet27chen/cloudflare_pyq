@@ -1,21 +1,29 @@
 /**
  * Cloudflare Worker bindings & shared domain types for Moments.
+ *
+ * Data lives in D1 (SQLite); images in R2; the built frontend is served
+ * through the ASSETS binding. No Supabase anywhere.
  */
 
 export interface Env {
   ENVIRONMENT: 'development' | 'production';
 
-  /** Supabase project URL, e.g. https://xxxx.supabase.co */
-  SUPABASE_URL: string;
-  /** Service role key - server only, NEVER exposed to the browser. */
-  SUPABASE_SERVICE_ROLE_KEY: string;
   /** Secret used to sign short-lived author session tokens. */
   ADMIN_JWT_SECRET: string;
-  /** Supabase Storage bucket for post images. */
-  STORAGE_BUCKET: string;
+  /** Password for the single author to obtain a session token. */
+  ADMIN_PASSWORD: string;
 
-  // Optional: Cloudflare Rate Limiting binding (requires a paid plan / beta).
-  // Declared here so the route layer can reference it once it is wired.
+  /** D1 database (SQLite) holding posts / post_images / likes. */
+  DB: D1Database;
+  /** R2 bucket for post images (served same-origin via /img). */
+  BUCKET: R2Bucket;
+  /** Static assets binding serving the built frontend (frontend/dist). */
+  ASSETS: Fetcher;
+
+  /**
+   * Optional Cloudflare Rate Limiting binding. When absent (dev / free
+   * plan), the rate-limit middleware falls back to an in-memory limiter.
+   */
   RATE_LIMITER?: unknown;
 }
 
@@ -72,7 +80,7 @@ export interface PageCursor {
 
 /** Hono context variables shared across the app. */
 export interface AppVariables {
-  /** Author Supabase user id, set by requireAuthor middleware. */
+  /** Author id, set by requireAuthor middleware (constant 'author'). */
   authorId: string;
 }
 

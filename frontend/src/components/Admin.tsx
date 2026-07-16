@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   exchangeSession,
   createPost,
@@ -12,26 +11,22 @@ import {
   fetchPosts,
   type PostDTO,
 } from '../utils/api';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../utils/config';
 import { formatRelative } from '../utils/time';
 
 /**
  * Admin panel - hidden at /admin.
  *
  * Flow:
- *   1. Author enters email + password (Supabase Auth).
- *   2. Supabase returns an access_token.
- *   3. Frontend exchanges it for a Moments session token via /api/auth/session.
- *   4. All mutations use the Moments token (Authorization: Bearer).
+ *   1. Author enters the ADMIN_PASSWORD.
+ *   2. Frontend exchanges it for a Moments session token via POST /api/auth/session.
+ *   3. All mutations use the Moments token (Authorization: Bearer).
  *
  * The panel is intentionally minimal - not a CMS. Just: compose, publish,
  * edit, delete, and a small stats strip.
  */
 
 interface AdminState {
-  supabase: SupabaseClient | null;
   sessionToken: string | null;
-  email: string;
   password: string;
   loading: boolean;
   error: string | null;
@@ -40,21 +35,11 @@ interface AdminState {
 export function Admin() {
   const reduce = useReducedMotion();
   const [state, setState] = useState<AdminState>({
-    supabase: null,
     sessionToken: null,
-    email: '',
     password: '',
     loading: false,
     error: null,
   });
-
-  // Initialize Supabase client on mount.
-  useEffect(() => {
-    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-      const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      setState((s) => ({ ...s, supabase: client }));
-    }
-  }, []);
 
   // Check for existing session on mount.
   useEffect(() => {
@@ -66,21 +51,12 @@ export function Admin() {
 
   const handleLogin = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!state.supabase) return;
     setState((s) => ({ ...s, loading: true, error: null }));
 
     try {
-      const { data, error } = await state.supabase.auth.signInWithPassword({
-        email: state.email,
-        password: state.password,
-      });
-      if (error) throw error;
-      if (!data.session) throw new Error('No session returned.');
-
-      // Exchange Supabase token for Moments session token.
-      const { token } = await exchangeSession(data.session.access_token);
+      const { token } = await exchangeSession(state.password);
       sessionStorage.setItem('moments_admin_token', token);
-      setState((s) => ({ ...s, sessionToken: token, loading: false }));
+      setState((s) => ({ ...s, sessionToken: token, loading: false, password: '' }));
     } catch (err) {
       setState((s) => ({
         ...s,
@@ -88,11 +64,11 @@ export function Admin() {
         error: err instanceof Error ? err.message : 'Login failed.',
       }));
     }
-  }, [state.supabase, state.email, state.password]);
+  }, [state.password]);
 
   const handleLogout = useCallback(() => {
     sessionStorage.removeItem('moments_admin_token');
-    setState((s) => ({ ...s, sessionToken: null, email: '', password: '' }));
+    setState((s) => ({ ...s, sessionToken: null, password: '' }));
   }, []);
 
   // --- Login form ---
@@ -116,31 +92,6 @@ export function Admin() {
           </p>
 
           <form onSubmit={handleLogin} className="mt-6 space-y-4">
-            <div>
-              <label
-                htmlFor="admin-email"
-                className="mb-1.5 block text-sm font-medium"
-                style={{ color: 'var(--fg)' }}
-              >
-                Email
-              </label>
-              <input
-                id="admin-email"
-                type="email"
-                required
-                value={state.email}
-                onChange={(e) =>
-                  setState((s) => ({ ...s, email: e.target.value }))
-                }
-                className="w-full rounded-xl border px-3.5 py-2.5 text-[15px] outline-none transition-colors focus:border-[var(--color-accent)]"
-                style={{
-                  backgroundColor: 'var(--color-surface-2)',
-                  borderColor: 'var(--line)',
-                  color: 'var(--fg)',
-                }}
-                placeholder="you@example.com"
-              />
-            </div>
             <div>
               <label
                 htmlFor="admin-password"

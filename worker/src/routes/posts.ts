@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import type { AppType, PostDTO, PostRow, PostImageRow, ListResult } from '../types';
-import { createServiceClient } from '../utils/supabase';
 import { ok, fail, ERR } from '../utils/response';
 import {
   decodeCursor,
@@ -13,31 +12,53 @@ import { rateLimit } from '../middleware/rateLimit';
 import { requireAuthor } from '../middleware/auth';
 
 /**
- * Posts routes.
+ * Posts routes (Cloudflare D1 / SQLite backend).
  *
- *   GET    /                  list (cursor pagination)
+ *   GET    /                  list (keyset pagination)
  *   GET    /:id               single post
- *   POST   /                  create            [author]   (stage 6)
- *   PATCH  /:id               edit              [author]   (stage 6)
- *   DELETE /:id               delete            [author]   (stage 6)
- *   POST   /:id/like          like              [visitor]  (stage 5)
- *   DELETE /:id/like          unlike            [visitor]  (stage 5)
+ *   POST   /                  create            [author]
+ *   PATCH  /:id               edit              [author]
+ *   DELETE /:id               delete            [author]
+ *   POST   /:id/like          like              [visitor]
+ *   DELETE /:id/like          unlike            [visitor]
  */
 export const posts = new Hono<AppType>();
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 30;
+const VISITOR_RE = /^visitor_[A-Za-z0-9_-]{6,48}$/;
+
+function softVisitor(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  return VISITOR_RE.test(raw) ? raw : null;
+}
+
+/** Helper: fetch current like_count for a post. */
+async function likeCount(db: D1Database, postId: string): Promise<number> {
+  const r = await db
+    .prepare(`SELECT COUNT(*) AS c FROM likes WHERE post_id = ?`)
+    .bind(postId)
+    .first<{ c: number }>();
+  return r?.c ?? 0;
+}
+
+function imgInsertStmt(db: D1Database, postId: string, imageUrls: string[]) {
+  const now = new Date().toISOString();
+  const rows = imageUrls.map((url, i) => [crypto.randomUUID(), postId, url, i, now]);
+  const placeholders = rows.map(() => '(?, ?, ?, ?, ?)').join(',');
+  const flat: unknown[] = [];
+  for (const r of rows) flat.push(...r);
+  return db
+    .prepare(
+      `INSERT INTO post_images (id, post_id, url, position, created_at) VALUES ${placeholders}`,
+    )
+    .bind(...flat);
+}
 
 /**
- * GET /api/posts
- *
- * Query params:
- *   cursor  optional, opaque value from a previous response
- *   limit   optional, default 10, max 30
- *   visitor optional, visitor_id to compute `liked` per post
- *
- * Returns newest-first. Uses keyset pagination on (created_at, id) for
- * stable ordering even when multiple posts share a timestamp.
+ * GET /api/posts — newest-first, keyset pagination on (created_at, id).
+ * like_count is computed via a correlated subquery; images and optional
+ * liked-by-visitor are fetched in parallel.
  */
 posts.get('/', async (c) => {
   const limit = parseIntQuery(c.req.query('limit'), {
@@ -46,96 +67,63 @@ posts.get('/', async (c) => {
     max: MAX_LIMIT,
   });
   const cursor = decodeCursor(c.req.query('cursor'));
-  const visitor = (() => {
-    const v = c.req.query('visitor');
-    if (!v) return null;
-    // Soft-validate: an invalid visitor_id just means we cannot compute
-    // `liked`, it does not break the read. Hard validation happens on write.
-    return /^visitor_[A-Za-z0-9_-]{6,48}$/.test(v) ? v : null;
-  })();
+  const visitor = softVisitor(c.req.query('visitor'));
+  const db = c.env.DB;
 
-  const supabase = createServiceClient(c.env);
-
-  // 1. Fetch the page of posts (keyset: created_at < cursor.ts OR
-  //    (created_at = cursor.ts AND id < cursor.id), order desc).
-  let q = supabase
-    .from('posts')
-    .select('id, content, created_at, updated_at')
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(limit + 1); // +1 to detect next page
-
+  let sql = `SELECT id, content, created_at, updated_at,
+    (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count
+    FROM posts p`;
+  const binds: (string | number)[] = [];
   if (cursor) {
-    // Supabase PostgREST does not support composite keyset directly, so we
-    // emulate with a single-column cursor by encoding (ts,id) into an
-    // inclusive boundary using the lt filter on a computed boundary value.
-    // Practical approach: filter created_at <= cursor.ts, then post-filter
-    // by id when ts equals cursor.ts. Done after fetch.
-    q = q.lt('created_at', cursor.ts);
+    sql += ` WHERE (p.created_at < ? OR (p.created_at = ? AND p.id < ?))`;
+    binds.push(cursor.ts, cursor.ts, cursor.id);
   }
+  sql += ` ORDER BY p.created_at DESC, p.id DESC LIMIT ?`;
+  binds.push(limit + 1);
 
-  const { data: rows, error } = await q;
-  if (error) throw error;
+  const { results } = await db
+    .prepare(sql)
+    .bind(...binds)
+    .all<PostRow & { like_count: number }>();
+  const rows = results ?? [];
 
-  const pageRows = (rows ?? []) as PostRow[];
-
-  // When using a cursor, also include posts AT cursor.ts with smaller ids
-  // (the tiebreak). Fetch them and prepend.
-  if (cursor && pageRows.length > 0) {
-    const { data: tieRows } = await supabase
-      .from('posts')
-      .select('id, content, created_at, updated_at')
-      .eq('created_at', cursor.ts)
-      .lt('id', cursor.id)
-      .order('id', { ascending: false })
-      .limit(limit);
-    if (tieRows && tieRows.length > 0) {
-      pageRows.unshift(...(tieRows as PostRow[]));
-    }
-  }
-  // Cap to the requested limit after the tie merge.
-  const trimmed = pageRows.slice(0, limit);
-
+  const hasMore = rows.length > limit;
+  const trimmed = rows.slice(0, limit);
   if (trimmed.length === 0) {
-    const empty: ListResult<PostDTO> = { items: [], next_cursor: null };
-    return ok(c, empty);
+    return ok<ListResult<PostDTO>>(c, { items: [], next_cursor: null });
   }
 
   const postIds = trimmed.map((p) => p.id);
+  const placeholders = postIds.map(() => '?').join(',');
 
-  // 2. Parallel: images + like counts + (optional) liked-by-visitor.
-  const [imagesRes, countsRes, likedRes] = await Promise.all([
-    supabase
-      .from('post_images')
-      .select('id, post_id, url, position, created_at')
-      .in('post_id', postIds)
-      .order('position', { ascending: true }),
-    supabase.from('post_stats').select('post_id, like_count').in('post_id', postIds),
+  const [imgRes, likedRes] = await Promise.all([
+    db
+      .prepare(
+        `SELECT id, post_id, url, position, created_at FROM post_images
+         WHERE post_id IN (${placeholders}) ORDER BY position ASC`,
+      )
+      .bind(...postIds)
+      .all<PostImageRow>(),
     visitor
-      ? supabase
-          .from('likes')
-          .select('post_id')
-          .eq('visitor_id', visitor)
-          .in('post_id', postIds)
-      : Promise.resolve({ data: [] as { post_id: string }[], error: null }),
+      ? db
+          .prepare(
+            `SELECT post_id FROM likes WHERE visitor_id = ? AND post_id IN (${placeholders})`,
+          )
+          .bind(visitor, ...postIds)
+          .all<{ post_id: string }>()
+      : Promise.resolve({ results: [] as { post_id: string }[] }),
   ]);
 
-  if (imagesRes.error) throw imagesRes.error;
-  if (countsRes.error) throw countsRes.error;
-  if (likedRes.error) throw likedRes.error;
-
-  // Index for O(1) lookup while building DTOs.
   const imagesByPost = new Map<string, PostImageRow[]>();
-  for (const img of (imagesRes.data ?? []) as PostImageRow[]) {
+  for (const img of imgRes.results ?? []) {
     const arr = imagesByPost.get(img.post_id) ?? [];
     arr.push(img);
     imagesByPost.set(img.post_id, arr);
   }
-  const countByPost = new Map<string, number>();
-  for (const r of countsRes.data ?? []) {
-    countByPost.set(r.post_id, r.like_count as number);
+  const likedSet = new Set<string>();
+  for (const r of likedRes.results ?? []) {
+    likedSet.add(r.post_id);
   }
-  const likedSet = new Set((likedRes.data ?? []).map((r) => r.post_id));
 
   const items: PostDTO[] = trimmed.map((p) => ({
     id: p.id,
@@ -145,268 +133,177 @@ posts.get('/', async (c) => {
       .map((i) => i.url),
     created_at: p.created_at,
     updated_at: p.updated_at,
-    like_count: countByPost.get(p.id) ?? 0,
+    like_count: p.like_count ?? 0,
     liked: likedSet.has(p.id),
   }));
 
-  // Next cursor is derived from the last item of the page (stable keyset).
   let next_cursor: string | null = null;
   const last = trimmed[trimmed.length - 1];
-  // The "limit + 1" probe tells us more rows exist on the created_at axis;
-  // combined with tie rows, we set the cursor whenever there *might* be more.
-  const hasMore = rows != null && rows.length > limit;
-  if (hasMore && last) {
-    next_cursor = encodeCursor(last.created_at, last.id);
-  }
+  if (hasMore && last) next_cursor = encodeCursor(last.created_at, last.id);
 
-  const result: ListResult<PostDTO> = { items, next_cursor };
-  return ok(c, result);
+  return ok<ListResult<PostDTO>>(c, { items, next_cursor });
 });
 
 /**
  * GET /api/posts/:id
- *
- * Query params:
- *   visitor optional, visitor_id to compute `liked`
  */
 posts.get('/:id', async (c) => {
   const id = c.req.param('id');
   if (!/^[0-9a-f-]{36}$/i.test(id)) {
     return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
   }
-  const visitor = (() => {
-    const v = c.req.query('visitor');
-    return v && /^visitor_[A-Za-z0-9_-]{6,48}$/.test(v) ? v : null;
-  })();
+  const visitor = softVisitor(c.req.query('visitor'));
+  const db = c.env.DB;
 
-  const supabase = createServiceClient(c.env);
+  const post = await db
+    .prepare(
+      `SELECT id, content, created_at, updated_at,
+        (SELECT COUNT(*) FROM likes l WHERE l.post_id = p.id) AS like_count
+       FROM posts p WHERE p.id = ?`,
+    )
+    .bind(id)
+    .first<PostRow & { like_count: number }>();
+  if (!post) return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
 
-  const [{ data: post, error }, { data: images, error: imgErr }] = await Promise.all([
-    supabase
-      .from('posts')
-      .select('id, content, created_at, updated_at')
-      .eq('id', id)
-      .maybeSingle(),
-    supabase
-      .from('post_images')
-      .select('id, post_id, url, position, created_at')
-      .eq('post_id', id)
-      .order('position', { ascending: true }),
-  ]);
-  if (error) throw error;
-  if (imgErr) throw imgErr;
-  if (!post) {
-    return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
-  }
-
-  const { data: statsRow } = await supabase
-    .from('post_stats')
-    .select('like_count')
-    .eq('post_id', id)
-    .maybeSingle();
+  const imgRes = await db
+    .prepare(
+      `SELECT id, post_id, url, position, created_at FROM post_images
+       WHERE post_id = ? ORDER BY position ASC`,
+    )
+    .bind(id)
+    .all<PostImageRow>();
+  const images = imgRes.results ?? [];
 
   let liked = false;
   if (visitor) {
-    const { data: likeRow } = await supabase
-      .from('likes')
-      .select('id')
-      .eq('post_id', id)
-      .eq('visitor_id', visitor)
-      .maybeSingle();
+    const likeRow = await db
+      .prepare(`SELECT id FROM likes WHERE post_id = ? AND visitor_id = ?`)
+      .bind(id, visitor)
+      .first();
     liked = !!likeRow;
   }
 
   const dto: PostDTO = {
-    id: (post as PostRow).id,
-    content: (post as PostRow).content,
-    images: ((images ?? []) as PostImageRow[])
-      .sort((a, b) => a.position - b.position)
-      .map((i) => i.url),
-    created_at: (post as PostRow).created_at,
-    updated_at: (post as PostRow).updated_at,
-    like_count: (statsRow?.like_count as number) ?? 0,
+    id: post.id,
+    content: post.content,
+    images: images.map((i) => i.url),
+    created_at: post.created_at,
+    updated_at: post.updated_at,
+    like_count: post.like_count ?? 0,
     liked,
   };
-  return ok(c, dto);
+  return ok<PostDTO>(c, dto);
 });
 
-/* ============================================================
- * WRITES - author only (requireAuthor middleware).
- * ============================================================ */
-
 /**
- * POST /api/posts
- *
+ * POST /api/posts — create [author]
  * Body: { content, image_urls?: string[] }
- * Returns: the created PostDTO.
  */
-posts.post(
-  '/',
-  requireAuthor,
-  async (c) => {
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch {
-      return fail(c, 400, ERR.BAD_REQUEST, 'Request body must be JSON.');
-    }
-    const input = assertPostInput(body);
+posts.post('/', requireAuthor, async (c) => {
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return fail(c, 400, ERR.BAD_REQUEST, 'Request body must be JSON.');
+  }
+  const input = assertPostInput(body);
+  const db = c.env.DB;
 
-    const supabase = createServiceClient(c.env);
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await db
+    .prepare(`INSERT INTO posts (id, content, created_at, updated_at) VALUES (?, ?, ?, ?)`)
+    .bind(id, input.content, now, now)
+    .run();
 
-    const { data: post, error } = await supabase
-      .from('posts')
-      .insert({ content: input.content })
-      .select('id, content, created_at, updated_at')
-      .single();
-    if (error) throw error;
+  if (input.image_urls.length > 0) {
+    await imgInsertStmt(db, id, input.image_urls).run();
+  }
 
-    // Insert images in one batch.
-    if (input.image_urls.length > 0) {
-      const imgRows = input.image_urls.map((url, i) => ({
-        post_id: (post as PostRow).id,
-        url,
-        position: i,
-      }));
-      await supabase.from('post_images').insert(imgRows);
-    }
-
-    const dto: PostDTO = {
-      id: (post as PostRow).id,
-      content: (post as PostRow).content,
-      images: input.image_urls,
-      created_at: (post as PostRow).created_at,
-      updated_at: (post as PostRow).updated_at,
-      like_count: 0,
-      liked: false,
-    };
-    return ok(c, dto, 201);
-  },
-);
+  const dto: PostDTO = {
+    id,
+    content: input.content,
+    images: input.image_urls,
+    created_at: now,
+    updated_at: now,
+    like_count: 0,
+    liked: false,
+  };
+  return ok<PostDTO>(c, dto, 201);
+});
 
 /**
- * PATCH /api/posts/:id
- *
- * Body: { content, image_urls?: string[] }
- * Returns: the updated PostDTO.
- * image_urls replaces the existing set entirely.
+ * PATCH /api/posts/:id — edit [author]
+ * Body: { content, image_urls?: string[] }  (replaces images entirely)
  */
-posts.patch(
-  '/:id',
-  requireAuthor,
-  async (c) => {
-    const id = c.req.param('id');
-    if (!/^[0-9a-f-]{36}$/i.test(id)) {
-      return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
-    }
+posts.patch('/:id', requireAuthor, async (c) => {
+  const id = c.req.param('id');
+  if (!/^[0-9a-f-]{36}$/i.test(id)) {
+    return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
+  }
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    return fail(c, 400, ERR.BAD_REQUEST, 'Request body must be JSON.');
+  }
+  const input = assertPostInput(body);
+  const db = c.env.DB;
 
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch {
-      return fail(c, 400, ERR.BAD_REQUEST, 'Request body must be JSON.');
-    }
-    const input = assertPostInput(body);
+  const existing = await db
+    .prepare(`SELECT id FROM posts WHERE id = ?`)
+    .bind(id)
+    .first();
+  if (!existing) return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
 
-    const supabase = createServiceClient(c.env);
+  await db
+    .prepare(`UPDATE posts SET content = ?, updated_at = ? WHERE id = ?`)
+    .bind(input.content, new Date().toISOString(), id)
+    .run();
 
-    // Verify the post exists.
-    const { data: existing, error: findErr } = await supabase
-      .from('posts')
-      .select('id')
-      .eq('id', id)
-      .maybeSingle();
-    if (findErr) throw findErr;
-    if (!existing) return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
+  // Replace images: delete existing, then insert the new set.
+  await db.prepare(`DELETE FROM post_images WHERE post_id = ?`).bind(id).run();
+  if (input.image_urls.length > 0) {
+    await imgInsertStmt(db, id, input.image_urls).run();
+  }
 
-    // Update content.
-    const { data: post, error: updateErr } = await supabase
-      .from('posts')
-      .update({ content: input.content })
-      .eq('id', id)
-      .select('id, content, created_at, updated_at')
-      .single();
-    if (updateErr) throw updateErr;
+  const like_count = await likeCount(db, id);
+  const updated = await db
+    .prepare(`SELECT content, created_at, updated_at FROM posts WHERE id = ?`)
+    .bind(id)
+    .first<PostRow>();
 
-    // Replace images: delete all existing, then insert the new set.
-    await supabase.from('post_images').delete().eq('post_id', id);
-    if (input.image_urls.length > 0) {
-      const imgRows = input.image_urls.map((url, i) => ({
-        post_id: id,
-        url,
-        position: i,
-      }));
-      await supabase.from('post_images').insert(imgRows);
-    }
-
-    // Recompute like_count.
-    const like_count = await fetchLikeCount(supabase, id);
-
-    const dto: PostDTO = {
-      id: (post as PostRow).id,
-      content: (post as PostRow).content,
-      images: input.image_urls,
-      created_at: (post as PostRow).created_at,
-      updated_at: (post as PostRow).updated_at,
-      like_count,
-      liked: false,
-    };
-    return ok(c, dto);
-  },
-);
+  const dto: PostDTO = {
+    id,
+    content: updated?.content ?? input.content,
+    images: input.image_urls,
+    created_at: updated?.created_at ?? new Date().toISOString(),
+    updated_at: updated?.updated_at ?? new Date().toISOString(),
+    like_count,
+    liked: false,
+  };
+  return ok<PostDTO>(c, dto);
+});
 
 /**
- * DELETE /api/posts/:id
- *
- * Cascading delete (posts.on_delete_cascade removes images and likes).
- * Returns: { deleted: true }
+ * DELETE /api/posts/:id — delete [author]
+ * Children removed explicitly (robust regardless of FK pragma).
  */
-posts.delete(
-  '/:id',
-  requireAuthor,
-  async (c) => {
-    const id = c.req.param('id');
-    if (!/^[0-9a-f-]{36}$/i.test(id)) {
-      return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
-    }
-
-    const supabase = createServiceClient(c.env);
-
-    const { error } = await supabase.from('posts').delete().eq('id', id);
-    if (error) throw error;
-
-    return ok(c, { deleted: true });
-  },
-);
-
-/* ============================================================
- * LIKES - public, visitor-scoped, idempotent.
- *
- * Duplicate prevention:
- *  - DB unique constraint on (post_id, visitor_id) is the source of truth.
- *  - We pre-check existence so the common path returns 200 not 409.
- *  - Rate-limited per IP (10 actions / minute) to slow brute-force likes.
- * ============================================================ */
-
-/** Helper: fetch current like_count for a post, tolerating a missing view row. */
-async function fetchLikeCount(
-  supabase: ReturnType<typeof createServiceClient>,
-  postId: string,
-): Promise<number> {
-  const { data } = await supabase
-    .from('post_stats')
-    .select('like_count')
-    .eq('post_id', postId)
-    .maybeSingle();
-  return (data?.like_count as number) ?? 0;
-}
+posts.delete('/:id', requireAuthor, async (c) => {
+  const id = c.req.param('id');
+  if (!/^[0-9a-f-]{36}$/i.test(id)) {
+    return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
+  }
+  const db = c.env.DB;
+  await db.prepare(`DELETE FROM post_images WHERE post_id = ?`).bind(id).run();
+  await db.prepare(`DELETE FROM likes WHERE post_id = ?`).bind(id).run();
+  await db.prepare(`DELETE FROM posts WHERE id = ?`).bind(id).run();
+  return ok(c, { deleted: true });
+});
 
 /**
- * POST /api/posts/:id/like
- *
+ * POST /api/posts/:id/like — like [visitor], idempotent.
  * Body: { visitor_id }
- * Returns: { liked: true, like_count }
- * Idempotent: liking again returns the current count with liked: true.
  */
 posts.post(
   '/:id/like',
@@ -416,7 +313,6 @@ posts.post(
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
       return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
     }
-
     let body: unknown;
     try {
       body = await c.req.json();
@@ -424,55 +320,38 @@ posts.post(
       return fail(c, 400, ERR.BAD_REQUEST, 'Request body must be JSON.');
     }
     const visitorId = assertVisitorId((body as Record<string, unknown>)?.visitor_id);
+    const db = c.env.DB;
 
-    const supabase = createServiceClient(c.env);
-
-    // Confirm the post exists (and is not deleted concurrently).
-    const { data: post, error: postErr } = await supabase
-      .from('posts')
-      .select('id')
-      .eq('id', id)
-      .maybeSingle();
-    if (postErr) throw postErr;
+    const post = await db
+      .prepare(`SELECT id FROM posts WHERE id = ?`)
+      .bind(id)
+      .first();
     if (!post) return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
 
-    // Pre-check: if already liked, short-circuit (idempotent).
-    const { data: existing } = await supabase
-      .from('likes')
-      .select('id')
-      .eq('post_id', id)
-      .eq('visitor_id', visitorId)
-      .maybeSingle();
+    const existing = await db
+      .prepare(`SELECT id FROM likes WHERE post_id = ? AND visitor_id = ?`)
+      .bind(id, visitorId)
+      .first();
     if (existing) {
-      const like_count = await fetchLikeCount(supabase, id);
+      const like_count = await likeCount(db, id);
       return ok(c, { liked: true, like_count });
     }
 
-    // Insert. The unique constraint is the final guard against a race where
-    // two concurrent requests pass the pre-check; PostgREST returns 409.
-    const { error: insertErr } = await supabase
-      .from('likes')
-      .insert({ post_id: id, visitor_id: visitorId });
-    if (insertErr) {
-      // 23505 = unique_violation. Treat as "already liked" -> idempotent ok.
-      if ((insertErr as { code?: string }).code === '23505') {
-        const like_count = await fetchLikeCount(supabase, id);
-        return ok(c, { liked: true, like_count });
-      }
-      throw insertErr;
-    }
+    await db
+      .prepare(
+        `INSERT OR IGNORE INTO likes (id, post_id, visitor_id, created_at) VALUES (?, ?, ?, ?)`,
+      )
+      .bind(crypto.randomUUID(), id, visitorId, new Date().toISOString())
+      .run();
 
-    const like_count = await fetchLikeCount(supabase, id);
+    const like_count = await likeCount(db, id);
     return ok(c, { liked: true, like_count }, 201);
   },
 );
 
 /**
- * DELETE /api/posts/:id/like
- *
- * Body: { visitor_id }
- * Returns: { liked: false, like_count }
- * Idempotent: un-liking when not liked returns the current count.
+ * DELETE /api/posts/:id/like — unlike [visitor], idempotent.
+ * Body or query param: { visitor_id }
  */
 posts.delete(
   '/:id/like',
@@ -482,8 +361,6 @@ posts.delete(
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
       return fail(c, 404, ERR.NOT_FOUND, 'Post not found.');
     }
-
-    // Body may be JSON or a query param; accept both for DELETE ergonomics.
     let visitorId: string | undefined;
     const fromQuery = c.req.query('visitor_id');
     if (fromQuery) {
@@ -498,16 +375,13 @@ posts.delete(
     }
     const valid = assertVisitorId(visitorId);
 
-    const supabase = createServiceClient(c.env);
+    const db = c.env.DB;
+    await db
+      .prepare(`DELETE FROM likes WHERE post_id = ? AND visitor_id = ?`)
+      .bind(id, valid)
+      .run();
 
-    const { error: delErr } = await supabase
-      .from('likes')
-      .delete()
-      .eq('post_id', id)
-      .eq('visitor_id', valid);
-    if (delErr) throw delErr;
-
-    const like_count = await fetchLikeCount(supabase, id);
+    const like_count = await likeCount(db, id);
     return ok(c, { liked: false, like_count });
   },
 );

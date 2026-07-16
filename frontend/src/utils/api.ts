@@ -40,7 +40,7 @@ async function apiFetch<T>(
   const text = await res.text();
 
   // Guard against the common dev misconfiguration where the request hits
-  // the Astro dev server and returns HTML instead of JSON.
+  // the dev server and returns HTML instead of JSON.
   if (text.trimStart().startsWith('<')) {
     throw new Error(
       `API returned HTML (status ${res.status}). ` +
@@ -131,13 +131,13 @@ export function deletePost(token: string, postId: string) {
   });
 }
 
-/** POST /api/auth/session */
-export function exchangeSession(supabaseAccessToken: string) {
+/** POST /api/auth/session  { password } -> { token, expires_in } */
+export function exchangeSession(password: string) {
   return apiFetch<{ token: string; expires_in: number }>(
     '/api/auth/session',
     {
       method: 'POST',
-      body: JSON.stringify({ supabase_access_token: supabaseAccessToken }),
+      body: JSON.stringify({ password }),
     },
   );
 }

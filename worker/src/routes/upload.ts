@@ -5,24 +5,15 @@ import { requireAuthor } from '../middleware/auth';
 
 /**
  * Image upload route.
+ *   POST /   multipart/form-data, field "file"  -> { url }
  *
- *   POST /   multipart/form-data, field "file"
- *            -> { url }
- *
- * Accepts jpeg, png, webp up to 8 MB. Validates in the Worker before
- * uploading to Supabase Storage. The bucket (c.env.STORAGE_BUCKET) must
- * exist and have public read / service-role write policies (see schema.sql).
- *
- * Uploaded files are named: <post-image-prefix>/<uuid>.<ext>
+ * Stores the file in the R2 bucket (binding BUCKET) and returns a
+ * same-origin public URL served by the Worker's /img route. No Supabase.
  */
 export const upload = new Hono<AppType>();
 
 const MAX_SIZE = 8 * 1024 * 1024; // 8 MB
-const ALLOWED_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-]);
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const EXT_MAP: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -36,7 +27,6 @@ upload.post('/', requireAuthor, async (c) => {
     return fail(c, 400, ERR.BAD_REQUEST, 'A "file" field is required.');
   }
 
-  // Type check.
   if (!ALLOWED_TYPES.has(file.type)) {
     return fail(
       c,
@@ -45,8 +35,6 @@ upload.post('/', requireAuthor, async (c) => {
       `Unsupported image type: ${file.type}. Use jpeg, png, or webp.`,
     );
   }
-
-  // Size check.
   if (file.size > MAX_SIZE) {
     return fail(
       c,
@@ -57,40 +45,15 @@ upload.post('/', requireAuthor, async (c) => {
   }
 
   const ext = EXT_MAP[file.type] ?? 'jpg';
-  const filename = `${crypto.randomUUID()}.${ext}`;
-  const path = `post-images/${filename}`;
-  const bucket = c.env.STORAGE_BUCKET;
+  const key = `post-images/${crypto.randomUUID()}.${ext}`;
 
-  // Upload to Supabase Storage using the REST API (service role auth).
-  // Workers have no native Supabase Storage SDK; we use fetch directly
-  // with the service-role key which bypasses Storage RLS.
-  const uploadUrl = `${c.env.SUPABASE_URL}/storage/v1/object/${bucket}/${path}`;
-
-  const res = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${c.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      'Content-Type': file.type,
-      'x-upsert': 'false',
-    },
-    body: file.stream(),
+  await c.env.BUCKET.put(key, file.stream(), {
+    httpMetadata: { contentType: file.type },
   });
 
-  if (!res.ok) {
-    const detail = await res.text();
-    console.error('[moments] storage upload failed:', detail);
-    return fail(
-      c,
-      500,
-      ERR.INTERNAL,
-      'Image upload failed. Please try again.',
-    );
-  }
-
-  // The public URL (bucket is public-read, so no token needed).
-  const publicUrl = `${c.env.SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
-
-  return ok(c, { url: publicUrl }, 201);
+  // Same-origin public URL served by GET /img/:key.
+  const url = `/img/${key}`;
+  return ok(c, { url }, 201);
 });
 
 export default upload;

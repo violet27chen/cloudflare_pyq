@@ -2,12 +2,8 @@
 /// <reference types="astro/client" />
 
 interface ImportMetaEnv {
-  /** Public Worker/API base URL. Same origin in prod (Pages reverse proxy). */
+  /** Public Worker/API base URL. Empty = same origin (Worker serves /api). */
   readonly PUBLIC_API_BASE?: string;
-  /** Public Supabase URL (used by admin login only). */
-  readonly PUBLIC_SUPABASE_URL?: string;
-  /** Public Supabase anon key (safe to expose). */
-  readonly PUBLIC_SUPABASE_ANON_KEY?: string;
   /** Public author display name shown in the feed header. */
   readonly PUBLIC_AUTHOR_NAME?: string;
 }

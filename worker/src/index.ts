@@ -6,13 +6,14 @@ import { posts } from './routes/posts';
 import { auth } from './routes/auth';
 import { upload } from './routes/upload';
 import { stats } from './routes/stats';
+import { images } from './routes/images';
 
 /**
- * Moments API - Cloudflare Worker.
+ * Moments API + static frontend - single Cloudflare Worker.
  *
- * All routes live under /api. Reads (feed, single post) and likes are
- * public; mutations (create/edit/delete/upload) require the author
- * session token, applied per-route via the requireAuthor middleware.
+ * /api/*  -> Hono app (D1-backed API)
+ * /img/*  -> Hono app (R2 image serving)
+ * everything else -> ASSETS binding (built frontend/dist)
  */
 const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 
@@ -33,10 +34,24 @@ app.get('/api/health', (c) => {
   return c.json(body);
 });
 
-// --- route mounts (internals filled in stages 4-6) ----------------------
+// --- route mounts --------------------------------------------------------
 app.route('/api/posts', posts);
 app.route('/api/auth', auth);
 app.route('/api/upload', upload);
 app.route('/api/stats', stats);
+app.route('/img', images);
 
-export default app;
+// Serve the built frontend for all non-API, non-image paths.
+app.all('*', async (c) => {
+  return c.env.ASSETS.fetch(c.req.raw);
+});
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const url = new URL(request.url);
+    if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/img/')) {
+      return app.fetch(request, env, ctx);
+    }
+    return env.ASSETS.fetch(request);
+  },
+};
