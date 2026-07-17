@@ -131,7 +131,7 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
             </div>
           </div>
           {bio && (
-            <p className="px-5 pt-3 text-sm leading-relaxed" style={{ color: 'var(--fg-muted)' }}>
+            <p className="px-5 pt-3 text-sm leading-relaxed" style={{ color: 'var(--bio)' }}>
               {bio}
             </p>
           )}
@@ -163,7 +163,7 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
           </span>
         </div>
         {bio && (
-          <p className="px-4 pt-1 text-sm leading-relaxed" style={{ color: 'var(--fg-muted)' }}>
+          <p className="px-4 pt-1 text-sm leading-relaxed" style={{ color: 'var(--bio)' }}>
             {bio}
           </p>
         )}

@@ -78,11 +78,13 @@ CREATE TABLE IF NOT EXISTS sidebar (
 CREATE INDEX IF NOT EXISTS idx_sidebar_position ON sidebar(position);
 CREATE INDEX IF NOT EXISTS idx_sidebar_placement ON sidebar(placement);
 
--- Site-wide interface background (whole-page image or video).
+-- Site-wide interface background (whole-page image or video) + theme colors.
 -- Single row id='default'. bg_type in ('none','image','video').
+-- colors_json: JSON object of themable color tokens ('' = use default CSS).
 CREATE TABLE IF NOT EXISTS site_settings (
   id         TEXT PRIMARY KEY DEFAULT 'default',
   bg_type    TEXT NOT NULL DEFAULT 'none' CHECK(bg_type IN ('none','image','video')),
   bg_url     TEXT NOT NULL DEFAULT '',
+  colors_json TEXT NOT NULL DEFAULT '{}',
   updated_at TEXT NOT NULL
 );

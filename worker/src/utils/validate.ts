@@ -128,9 +128,44 @@ export function assertProfileInput(body: unknown): ProfileInput {
 const SETTINGS_BG_RE =
   /^(?:https?:\/\/[^\s"'<>]{1,1024}|\/img\/[^\s"'<>]{1,1024})$/i;
 
+/** Allowed theme color keys. */
+export const THEME_COLOR_KEYS = [
+  'bg',
+  'card',
+  'card_2',
+  'line',
+  'fg',
+  'fg_soft',
+  'fg_muted',
+  'accent',
+  'bio',
+] as const;
+export type ThemeColorKey = (typeof THEME_COLOR_KEYS)[number];
+
+/** Empty string (use default) or a #rgb / #rrggbb hex color. */
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+/** Parse + normalize an arbitrary colors object into ThemeColors. */
+export function parseThemeColors(raw: unknown): Record<ThemeColorKey, string> {
+  const out = {} as Record<ThemeColorKey, string>;
+  for (const key of THEME_COLOR_KEYS) out[key] = '';
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    for (const key of THEME_COLOR_KEYS) {
+      const v = obj[key];
+      if (typeof v === 'string') {
+        const t = v.trim();
+        if (t === '' || HEX_COLOR_RE.test(t)) out[key] = t;
+      }
+    }
+  }
+  return out;
+}
+
 export interface SettingsInput {
   bg_type: 'none' | 'image' | 'video';
   bg_url: string;
+  colors: Record<ThemeColorKey, string>;
 }
 
 /** Validate a settings body for PUT /api/settings. Returns normalized. */
@@ -150,7 +185,13 @@ export function assertSettingsInput(body: unknown): SettingsInput {
     );
   }
 
-  return { bg_type: bgType, bg_url: bgType === 'none' ? '' : bgUrl };
+  const colors = parseThemeColors(b.colors);
+
+  return {
+    bg_type: bgType,
+    bg_url: bgType === 'none' ? '' : bgUrl,
+    colors,
+  };
 }
 
 /** Parse a non-negative int query param with bounds. */

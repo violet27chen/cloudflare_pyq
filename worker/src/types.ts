@@ -69,10 +69,24 @@ export interface ProfileDTO {
   cover_image_url: string;
 }
 
-/** Site-wide interface background (whole-page image or video). */
+/** Themable color tokens. Empty string means "use default CSS variable". */
+export interface ThemeColors {
+  bg: string; // 页面背景
+  card: string; // 卡片背景
+  card_2: string; // 次级表面（输入框/骨架）
+  line: string; // 边框 / 分割线
+  fg: string; // 主文本
+  fg_soft: string; // 正文文本
+  fg_muted: string; // 次要文本（时间/弱文字）
+  accent: string; // 强调色（链接/按钮）
+  bio: string; // 个性签名
+}
+
+/** Site-wide interface background (whole-page image or video) + theme colors. */
 export interface SiteSettingsDTO {
   bg_type: 'none' | 'image' | 'video';
   bg_url: string;
+  colors: ThemeColors;
 }
 
 export interface ProfileRow {

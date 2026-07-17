@@ -3,18 +3,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { PostCard } from './PostCard';
 import { ProfileHeader } from './ProfileHeader';
-import { BackgroundMedia } from './BackgroundMedia';
 import { NoteBlank } from '@phosphor-icons/react';
 import { FeedSkeleton } from './PostSkeleton';
 import { useVisitorId } from '../hooks/useVisitorId';
 import {
   fetchPosts,
   getProfile,
-  getSettings,
   type PostDTO,
   type ProfileDTO,
   type SidebarItemDTO,
-  type SiteSettingsDTO,
 } from '../utils/api';
 
 const PAGE_SIZE = 10;
@@ -24,7 +21,6 @@ export function Feed() {
   const [posts, setPosts] = useState<PostDTO[]>([]);
   const [profile, setProfile] = useState<ProfileDTO | null>(null);
   const [sidebarItems, setSidebarItems] = useState<SidebarItemDTO[]>([]);
-  const [settings, setSettings] = useState<SiteSettingsDTO | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -47,13 +43,6 @@ export function Feed() {
       .then((body) => {
         if (body.ok) setSidebarItems(body.data ?? []);
       })
-      .catch(() => {});
-  }, []);
-
-  // Load site settings (interface background)
-  useEffect(() => {
-    getSettings()
-      .then(setSettings)
       .catch(() => {});
   }, []);
 
@@ -122,30 +111,15 @@ export function Feed() {
   const leftItems = sidebarItems.filter((i) => i.placement === 'left');
   const rightItems = sidebarItems.filter((i) => i.placement === 'right');
 
-  // Full-page background layer (image or video).
-  const bgLayer =
-    settings && settings.bg_type !== 'none' && settings.bg_url ? (
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <BackgroundMedia settings={settings} />
-      </div>
-    ) : null;
-
   // --- Render states ---
 
   if (loading) {
-    return (
-      <>
-        {bgLayer}
-        <FeedSkeleton count={3} />
-      </>
-    );
+    return <FeedSkeleton count={3} />;
   }
 
   if (error) {
     return (
-      <>
-        {bgLayer}
-        <div className="m-card p-8 text-center">
+      <div className="m-card p-8 text-center">
           <p className="text-[15px]" style={{ color: 'var(--fg-muted)' }}>
             {error}
           </p>
@@ -157,7 +131,6 @@ export function Feed() {
             重试
           </button>
         </div>
-      </>
     );
   }
 
@@ -226,9 +199,7 @@ export function Feed() {
     );
 
   return (
-    <>
-      {bgLayer}
-      <div className="flex flex-col gap-6 lg:flex-row">
+    <div className="flex flex-col gap-6 lg:flex-row">
         {/* 左侧列 — 仅桌面端显示 */}
         {leftItems.length > 0 && (
           <aside className="hidden w-72 shrink-0 space-y-4 lg:block">
@@ -255,7 +226,6 @@ export function Feed() {
           </aside>
         )}
       </div>
-    </>
   );
 }
 

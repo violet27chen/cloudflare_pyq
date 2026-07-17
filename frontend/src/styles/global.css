@@ -59,6 +59,8 @@
     --card: var(--color-surface);
     --card-2: var(--color-surface-2);
     --line: var(--color-hairline);
+    /* 个性签名颜色：默认跟随次要文本，可在后台单独自定义 */
+    --bio: var(--fg-muted);
   }
 
   @media (prefers-color-scheme: dark) {

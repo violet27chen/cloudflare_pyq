@@ -20,10 +20,24 @@ import {
   type PostDTO,
   type ProfileDTO,
   type SidebarItemDTO,
+  type ThemeColors,
 } from '../utils/api';
 import { formatRelative } from '../utils/time';
 import { Warning, Image } from '@phosphor-icons/react';
 import { ImageCropper } from './ImageCropper';
+
+/* 主题颜色字段：顺序即展示顺序。defaultHex 用于取色器初始显示（留空=默认）。 */
+const COLOR_FIELDS: { key: keyof ThemeColors; label: string; defaultHex: string }[] = [
+  { key: 'bg', label: '页面背景', defaultHex: '#ededed' },
+  { key: 'card', label: '卡片背景', defaultHex: '#ffffff' },
+  { key: 'card_2', label: '次级表面', defaultHex: '#f7f7f7' },
+  { key: 'line', label: '边框 / 分割线', defaultHex: '#e3e3e3' },
+  { key: 'fg', label: '主文本', defaultHex: '#1a1a1a' },
+  { key: 'fg_soft', label: '正文文本', defaultHex: '#4a4a4a' },
+  { key: 'fg_muted', label: '次要文本', defaultHex: '#8a8a8a' },
+  { key: 'accent', label: '强调色', defaultHex: '#07c160' },
+  { key: 'bio', label: '个性签名', defaultHex: '#8a8a8a' },
+];
 
 /* ============================================================
  * Admin panel - /admin
@@ -208,6 +222,20 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
   }>({ type: 'none', url: '' });
   const [uploadingBg, setUploadingBg] = useState(false);
 
+  // Theme colors (customizable). Empty string = use default CSS.
+  const EMPTY_COLORS: ThemeColors = {
+    bg: '',
+    card: '',
+    card_2: '',
+    line: '',
+    fg: '',
+    fg_soft: '',
+    fg_muted: '',
+    accent: '',
+    bio: '',
+  };
+  const [themeDraft, setThemeDraft] = useState<ThemeColors>(EMPTY_COLORS);
+
   // Load data
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -241,6 +269,9 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
       }
       if (settingsRes) {
         setBgDraft({ type: settingsRes.bg_type, url: settingsRes.bg_url });
+        if (settingsRes.colors) {
+          setThemeDraft({ ...EMPTY_COLORS, ...settingsRes.colors });
+        }
       }
     } catch {
       // Silently fail; user can refresh.
@@ -332,17 +363,20 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     [token],
   );
 
-  const handleSaveBg = useCallback(async () => {
+  // 保存界面背景 + 主题颜色（一次提交完整 settings）
+  const handleSaveSettings = useCallback(async () => {
     try {
       const updated = await updateSettings(token, {
         bg_type: bgDraft.type,
         bg_url: bgDraft.type === 'none' ? '' : bgDraft.url,
+        colors: themeDraft,
       });
       setBgDraft({ type: updated.bg_type, url: updated.bg_url });
+      if (updated.colors) setThemeDraft({ ...EMPTY_COLORS, ...updated.colors });
     } catch (err) {
       alert(err instanceof Error ? err.message : '保存失败');
     }
-  }, [token, bgDraft]);
+  }, [token, bgDraft, themeDraft]);
 
   /* ---------- Profile save ---------- */
   const handleSaveProfile = useCallback(async () => {
@@ -848,11 +882,87 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
 
         <button
           type="button"
-          onClick={handleSaveBg}
+          onClick={handleSaveSettings}
           className="m-btn-primary mt-2 px-6 py-2.5 text-sm"
         >
           保存背景
         </button>
+      </div>
+
+      {/* ====== 主题颜色（所有区域背景与文本可自定义） ====== */}
+      <div className="m-card mb-6 space-y-4 p-5">
+        <h2
+          className="text-sm font-semibold uppercase tracking-wider"
+          style={{ color: 'var(--fg-muted)' }}
+        >
+          主题颜色
+        </h2>
+        <p className="text-xs leading-relaxed" style={{ color: 'var(--fg-muted)' }}>
+          自定义页面背景、卡片、文本与强调色；留空则使用默认配色。个性签名颜色单独设置。保存后立即全站生效（含首页与后台）。
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {COLOR_FIELDS.map((f) => (
+            <label
+              key={f.key}
+              className="flex items-center gap-2 rounded-lg border px-2.5 py-2"
+              style={{ borderColor: 'var(--line)', backgroundColor: 'var(--card-2)' }}
+            >
+              <input
+                type="color"
+                value={themeDraft[f.key] || f.defaultHex}
+                onChange={(e) =>
+                  setThemeDraft((d) => ({ ...d, [f.key]: e.target.value }))
+                }
+                className="h-7 w-9 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
+                aria-label={f.label}
+              />
+              <span
+                className="min-w-0 flex-1 truncate text-xs"
+                style={{ color: 'var(--fg-soft)' }}
+              >
+                {f.label}
+                {themeDraft[f.key] ? (
+                  <span className="ml-1 text-[10px]" style={{ color: 'var(--fg-muted)' }}>
+                    {themeDraft[f.key]}
+                  </span>
+                ) : (
+                  <span className="ml-1 text-[10px]" style={{ color: 'var(--fg-muted)' }}>
+                    默认
+                  </span>
+                )}
+              </span>
+              {themeDraft[f.key] && (
+                <button
+                  type="button"
+                  onClick={() => setThemeDraft((d) => ({ ...d, [f.key]: '' }))}
+                  className="shrink-0 text-[10px] transition-colors hover:opacity-70"
+                  style={{ color: 'var(--color-accent)' }}
+                  aria-label={`重置${f.label}`}
+                >
+                  重置
+                </button>
+              )}
+            </label>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleSaveSettings}
+            className="m-btn-primary px-6 py-2.5 text-sm"
+          >
+            保存颜色
+          </button>
+          <button
+            type="button"
+            onClick={() => setThemeDraft(EMPTY_COLORS)}
+            className="m-btn-ghost px-5 py-2.5 text-sm"
+          >
+            全部恢复默认
+          </button>
+        </div>
       </div>
 
       {/* ====== 发帖按钮 ====== */}
