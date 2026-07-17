@@ -62,11 +62,15 @@ END;
 -- Author-managed, publicly readable.
 --   placement: 'left' | 'main' | 'right'  (which column the item shows in)
 --   position : ordering within the same placement
+--   image_url     : optional cropped image shown together with the text
+--   image_position: 'above' | 'below' — image relative to the text content
 CREATE TABLE IF NOT EXISTS sidebar (
   id       TEXT PRIMARY KEY,
   type     TEXT NOT NULL DEFAULT 'text' CHECK(type IN ('image','text','markdown')),
   title    TEXT NOT NULL DEFAULT '',
   content  TEXT NOT NULL DEFAULT '',
+  image_url      TEXT NOT NULL DEFAULT '',
+  image_position TEXT NOT NULL DEFAULT 'above' CHECK(image_position IN ('above','below')),
   position INTEGER NOT NULL DEFAULT 0,
   placement TEXT NOT NULL DEFAULT 'right' CHECK(placement IN ('left','main','right')),
   created_at TEXT NOT NULL

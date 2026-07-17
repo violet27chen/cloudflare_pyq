@@ -33,6 +33,10 @@ export interface SidebarItemDTO {
   type: 'image' | 'text' | 'markdown';
   title: string;
   content: string;
+  /** 可选：与文本同存的图片（已裁剪，宽度贴合列宽） */
+  image_url: string;
+  /** 图片相对文本的位置 */
+  image_position: 'above' | 'below';
   position: number;
   placement: 'left' | 'main' | 'right';
 }
@@ -245,6 +249,8 @@ export function createSidebarItem(
     type: 'image' | 'text' | 'markdown';
     title: string;
     content: string;
+    image_url?: string;
+    image_position?: 'above' | 'below';
     position?: number;
     placement?: 'left' | 'main' | 'right';
   },

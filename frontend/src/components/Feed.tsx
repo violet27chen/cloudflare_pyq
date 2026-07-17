@@ -268,65 +268,66 @@ export function Feed() {
 /* ---------- Sidebar card component ---------- */
 
 function SidebarCard({ item }: { item: SidebarItemDTO }) {
-  if (item.type === 'image') {
-    return (
-      <div className="m-card overflow-hidden">
-        <img
-          src={item.content}
-          alt={item.title || ''}
-          className="h-auto w-full object-cover"
-        />
-        {item.title && (
-          <div className="p-3">
-            <p className="text-sm font-medium" style={{ color: 'var(--fg)' }}>
-              {item.title}
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  }
+  // 兼容旧数据：老的 type==='image' 把图片地址存在 content 里。
+  const imgSrc = item.image_url || (item.type === 'image' ? item.content : '');
+  const text = item.type === 'image' ? '' : item.content;
+  const hasText = !!text.trim();
+  const isMarkdown = item.type === 'markdown';
 
-  if (item.type === 'markdown') {
-    return (
-      <div className="m-card p-5">
-        {item.title && (
-          <h3
-            className="mb-2 text-sm font-semibold"
-            style={{ color: 'var(--fg)' }}
-          >
-            {item.title}
-          </h3>
-        )}
-        <div
-          className="text-sm leading-relaxed prose-headings:font-semibold prose-p:text-[var(--fg-soft)] prose-a:text-[var(--color-accent)]"
-          style={{ color: 'var(--fg-soft)' }}
-        >
-          <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
-            {item.content}
-          </ReactMarkdown>
-        </div>
-      </div>
-    );
-  }
+  // 图片块（宽度贴合列宽，高度自适应；不超出列宽）
+  const imageBlock = imgSrc ? (
+    <img
+      src={imgSrc}
+      alt={item.title || ''}
+      className="block w-full object-cover"
+    />
+  ) : null;
 
-  /* text (default) */
-  return (
-    <div className="m-card p-5">
-      {item.title && (
-        <h3
-          className="mb-2 text-sm font-semibold"
-          style={{ color: 'var(--fg)' }}
-        >
-          {item.title}
-        </h3>
-      )}
+  // 文本块
+  const textBlock = hasText ? (
+    isMarkdown ? (
+      <div
+        className="text-sm leading-relaxed prose-headings:font-semibold prose-p:text-[var(--fg-soft)] prose-a:text-[var(--color-accent)]"
+        style={{ color: 'var(--fg-soft)' }}
+      >
+        <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{text}</ReactMarkdown>
+      </div>
+    ) : (
       <p
         className="whitespace-pre-wrap text-sm leading-relaxed"
         style={{ color: 'var(--fg-soft)' }}
       >
-        {item.content}
+        {text}
       </p>
+    )
+  ) : null;
+
+  // 纯图片：无标题无文本时，图片铺满卡片、无内边距。
+  if (imageBlock && !hasText && !item.title) {
+    return <div className="m-card overflow-hidden">{imageBlock}</div>;
+  }
+
+  const above = item.image_position !== 'below';
+
+  return (
+    <div className="m-card overflow-hidden">
+      {/* 图片在上 */}
+      {imageBlock && above && imageBlock}
+      {(item.title || textBlock) && (
+        <div className="space-y-2 p-5">
+          {item.title && (
+            <h3
+              className="text-sm font-semibold"
+              style={{ color: 'var(--fg)' }}
+            >
+              {item.title}
+            </h3>
+          )}
+          {textBlock}
+        </div>
+      )}
+      {/* 图片在下 */}
+      {imageBlock && !above && imageBlock}
     </div>
   );
 }

@@ -23,6 +23,7 @@ import {
 } from '../utils/api';
 import { formatRelative } from '../utils/time';
 import { Warning, Image } from '@phosphor-icons/react';
+import { ImageCropper } from './ImageCropper';
 
 /* ============================================================
  * Admin panel - /admin
@@ -419,12 +420,15 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
 
   const handleAddSidebar = useCallback(
     async (data: {
-      type: 'image' | 'text' | 'markdown';
+      type: 'text' | 'markdown';
       title: string;
       content: string;
+      image_url: string;
+      image_position: 'above' | 'below';
       placement: 'left' | 'main' | 'right';
     }) => {
-      if (!data.content.trim()) return;
+      // 图片和文本至少填一项
+      if (!data.content.trim() && !data.image_url) return;
       setSidebarSaving(true);
       try {
         const sameColCount = sidebarItems.filter(
@@ -434,6 +438,8 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
           type: data.type,
           title: data.title,
           content: data.content,
+          image_url: data.image_url,
+          image_position: data.image_position,
           position: sameColCount,
           placement: data.placement,
         });
@@ -922,6 +928,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
         <ColumnManager
           placement="left"
           label="左侧列"
+          token={token}
           items={sidebarItems.filter((i) => i.placement === 'left')}
           saving={sidebarSaving}
           onAdd={handleAddSidebar}
@@ -930,6 +937,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
         <ColumnManager
           placement="main"
           label="中间主区域"
+          token={token}
           items={sidebarItems.filter((i) => i.placement === 'main')}
           saving={sidebarSaving}
           onAdd={handleAddSidebar}
@@ -938,6 +946,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
         <ColumnManager
           placement="right"
           label="右侧列"
+          token={token}
           items={sidebarItems.filter((i) => i.placement === 'right')}
           saving={sidebarSaving}
           onAdd={handleAddSidebar}
@@ -1137,6 +1146,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
 function ColumnManager({
   placement,
   label,
+  token,
   items,
   saving,
   onAdd,
@@ -1144,28 +1154,71 @@ function ColumnManager({
 }: {
   placement: 'left' | 'main' | 'right';
   label: string;
+  token: string;
   items: SidebarItemDTO[];
   saving: boolean;
   onAdd: (data: {
-    type: 'image' | 'text' | 'markdown';
+    type: 'text' | 'markdown';
     title: string;
     content: string;
+    image_url: string;
+    image_position: 'above' | 'below';
     placement: 'left' | 'main' | 'right';
   }) => void;
   onDelete: (id: string) => void;
 }) {
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<'image' | 'text' | 'markdown'>('image');
+  const [textFormat, setTextFormat] = useState<'text' | 'markdown'>('text');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imagePosition, setImagePosition] = useState<'above' | 'below'>('above');
 
-  const handleAdd = async () => {
-    if (!content.trim()) return;
-    await onAdd({ type, title, content, placement });
-    setType('image');
+  // 裁剪流程
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const reset = () => {
+    setTextFormat('text');
     setTitle('');
     setContent('');
+    setImageUrl('');
+    setImagePosition('above');
+    setCropFile(null);
+  };
+
+  const handlePickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setCropFile(file); // 打开裁剪器
+  };
+
+  const handleCropped = async (cropped: File) => {
+    setCropFile(null);
+    setUploading(true);
+    try {
+      const { url } = await uploadMedia(token, cropped, 'post');
+      setImageUrl(url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '图片上传失败');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!content.trim() && !imageUrl) return;
+    await onAdd({
+      type: textFormat,
+      title,
+      content,
+      image_url: imageUrl,
+      image_position: imagePosition,
+      placement,
+    });
+    reset();
     setOpen(false);
   };
 
@@ -1180,7 +1233,10 @@ function ColumnManager({
         </h2>
         <button
           type="button"
-          onClick={() => setOpen(!open)}
+          onClick={() => {
+            if (open) reset();
+            setOpen(!open);
+          }}
           className="rounded-lg px-3 py-1.5 text-sm transition-colors"
           style={{
             color: 'var(--color-accent)',
@@ -1193,7 +1249,7 @@ function ColumnManager({
 
       {open && (
         <motion.div
-          className="space-y-3 rounded-md border p-4"
+          className="space-y-4 rounded-md border p-4"
           initial={reduce ? false : { opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           style={{
@@ -1201,25 +1257,7 @@ function ColumnManager({
             backgroundColor: 'var(--color-surface-2)',
           }}
         >
-          <div className="grid grid-cols-3 gap-2">
-            {(['image', 'text', 'markdown'] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setType(t)}
-                className="rounded-lg border py-2 text-xs font-medium transition-colors"
-                style={{
-                  borderColor: type === t ? 'var(--color-accent)' : 'var(--line)',
-                  backgroundColor:
-                    type === t ? 'var(--color-accent-soft)' : 'transparent',
-                  color: type === t ? 'var(--color-accent)' : 'var(--fg-muted)',
-                }}
-              >
-                {t === 'image' ? '图片' : t === 'text' ? '文本' : 'Markdown'}
-              </button>
-            ))}
-          </div>
-
+          {/* 标题 */}
           <div>
             <label
               className="mb-1 block text-xs font-medium"
@@ -1242,50 +1280,172 @@ function ColumnManager({
             />
           </div>
 
+          {/* 图片（上传 + 裁剪，宽度贴合列宽） */}
           <div>
             <label
               className="mb-1 block text-xs font-medium"
               style={{ color: 'var(--fg-muted)' }}
             >
-              内容{type === 'image' ? '（图片 URL）' : ''}
+              图片（可选，上传后可裁剪高度）
             </label>
-            {type === 'image' ? (
-              <input
-                type="url"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
-                style={{
-                  backgroundColor: 'var(--card)',
-                  borderColor: 'var(--line)',
-                  color: 'var(--fg)',
-                }}
-                placeholder="https://... 图片地址"
-              />
+            {imageUrl ? (
+              <div className="space-y-2">
+                <div
+                  className="overflow-hidden rounded-lg border"
+                  style={{ borderColor: 'var(--line)' }}
+                >
+                  <img src={imageUrl} alt="" className="w-full object-cover" />
+                </div>
+                <div className="flex gap-2">
+                  <label
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs transition-colors"
+                    style={{
+                      borderColor: 'var(--line)',
+                      backgroundColor: 'var(--card)',
+                      color: 'var(--fg-soft)',
+                    }}
+                  >
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handlePickImage}
+                      className="hidden"
+                    />
+                    重新选择
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl('')}
+                    className="rounded-md px-3 py-1.5 text-xs transition-colors"
+                    style={{ color: 'var(--color-accent)' }}
+                  >
+                    移除图片
+                  </button>
+                </div>
+              </div>
             ) : (
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                rows={type === 'markdown' ? 6 : 3}
-                className="w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
+              <label
+                className={`inline-flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm transition-colors ${
+                  uploading ? 'opacity-50' : ''
+                }`}
                 style={{
-                  backgroundColor: 'var(--card)',
                   borderColor: 'var(--line)',
-                  color: 'var(--fg)',
+                  backgroundColor: 'var(--card)',
+                  color: 'var(--fg-soft)',
                 }}
-                placeholder={
-                  type === 'markdown'
-                    ? '支持 **Markdown** 语法...'
-                    : '输入文本内容...'
-                }
-              />
+              >
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handlePickImage}
+                  className="hidden"
+                  disabled={uploading}
+                />
+                <Image size={16} />
+                {uploading ? '上传中...' : '上传并裁剪图片'}
+              </label>
             )}
           </div>
+
+          {/* 文本 / Markdown */}
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label
+                className="block text-xs font-medium"
+                style={{ color: 'var(--fg-muted)' }}
+              >
+                文本内容（可选）
+              </label>
+              <div className="flex gap-1">
+                {(['text', 'markdown'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTextFormat(t)}
+                    className="rounded-md border px-2 py-0.5 text-xs font-medium transition-colors"
+                    style={{
+                      borderColor:
+                        textFormat === t ? 'var(--color-accent)' : 'var(--line)',
+                      backgroundColor:
+                        textFormat === t
+                          ? 'var(--color-accent-soft)'
+                          : 'transparent',
+                      color:
+                        textFormat === t
+                          ? 'var(--color-accent)'
+                          : 'var(--fg-muted)',
+                    }}
+                  >
+                    {t === 'text' ? '纯文本' : 'Markdown'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={textFormat === 'markdown' ? 5 : 3}
+              className="w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
+              style={{
+                backgroundColor: 'var(--card)',
+                borderColor: 'var(--line)',
+                color: 'var(--fg)',
+              }}
+              placeholder={
+                textFormat === 'markdown'
+                  ? '支持 **Markdown** 语法...'
+                  : '输入文本内容...'
+              }
+            />
+          </div>
+
+          {/* 图片位置（仅在同时有图片和文本时有意义） */}
+          {imageUrl && content.trim() && (
+            <div>
+              <label
+                className="mb-1 block text-xs font-medium"
+                style={{ color: 'var(--fg-muted)' }}
+              >
+                图片位置
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ['above', '图片在文本上方'],
+                    ['below', '图片在文本下方'],
+                  ] as const
+                ).map(([v, lb]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setImagePosition(v)}
+                    className="rounded-lg border py-2 text-xs font-medium transition-colors"
+                    style={{
+                      borderColor:
+                        imagePosition === v
+                          ? 'var(--color-accent)'
+                          : 'var(--line)',
+                      backgroundColor:
+                        imagePosition === v
+                          ? 'var(--color-accent-soft)'
+                          : 'transparent',
+                      color:
+                        imagePosition === v
+                          ? 'var(--color-accent)'
+                          : 'var(--fg-muted)',
+                    }}
+                  >
+                    {lb}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <button
             type="button"
             onClick={handleAdd}
-            disabled={saving || !content.trim()}
+            disabled={saving || uploading || (!content.trim() && !imageUrl)}
             className="m-btn-primary w-full py-2 text-sm disabled:opacity-50"
           >
             {saving ? '添加中...' : `添加到${label}`}
@@ -1295,47 +1455,74 @@ function ColumnManager({
 
       {items.length > 0 ? (
         <div className="space-y-2">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center gap-3 rounded-lg border p-3"
-              style={{ borderColor: 'var(--line)' }}
-            >
-              <span
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold"
-                style={{
-                  backgroundColor: 'var(--color-surface-2)',
-                  color: 'var(--fg-muted)',
-                }}
+          {items.map((item) => {
+            const hasImage = !!item.image_url || item.type === 'image';
+            const hasText = item.type !== 'image' && !!item.content;
+            const badge =
+              hasImage && hasText
+                ? '图文'
+                : hasImage
+                  ? '图'
+                  : item.type === 'markdown'
+                    ? 'MD'
+                    : '文';
+            const preview =
+              item.title ||
+              (hasText ? item.content.slice(0, 40) : '图片');
+            return (
+              <div
+                key={item.id}
+                className="flex items-center gap-3 rounded-lg border p-3"
+                style={{ borderColor: 'var(--line)' }}
               >
-                {item.type === 'image' ? '图' : item.type === 'markdown' ? 'MD' : '文'}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p
-                  className="truncate text-sm font-medium"
-                  style={{ color: 'var(--fg)' }}
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold"
+                  style={{
+                    backgroundColor: 'var(--color-surface-2)',
+                    color: 'var(--fg-muted)',
+                  }}
                 >
-                  {item.title || item.content.slice(0, 40)}
-                </p>
-                <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>
-                  {item.type} · 位置 #{item.position}
+                  {badge}
                 </span>
+                <div className="min-w-0 flex-1">
+                  <p
+                    className="truncate text-sm font-medium"
+                    style={{ color: 'var(--fg)' }}
+                  >
+                    {preview}
+                  </p>
+                  <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+                    位置 #{item.position}
+                    {hasImage && hasText
+                      ? ` · 图片在${item.image_position === 'below' ? '下' : '上'}`
+                      : ''}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onDelete(item.id)}
+                  className="shrink-0 rounded-md px-2 py-1 text-xs transition-colors hover:bg-[var(--color-accent-soft)]"
+                  style={{ color: 'var(--color-accent)' }}
+                >
+                  删除
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => onDelete(item.id)}
-                className="shrink-0 rounded-md px-2 py-1 text-xs transition-colors hover:bg-[var(--color-accent-soft)]"
-                style={{ color: 'var(--color-accent)' }}
-              >
-                删除
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <p className="py-4 text-center text-sm" style={{ color: 'var(--fg-muted)' }}>
           还没有内容，点击上方按钮添加~
         </p>
+      )}
+
+      {/* 裁剪弹窗 */}
+      {cropFile && (
+        <ImageCropper
+          file={cropFile}
+          onCancel={() => setCropFile(null)}
+          onConfirm={handleCropped}
+        />
       )}
     </div>
   );
