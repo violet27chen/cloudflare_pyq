@@ -1,74 +1,50 @@
 @import 'tailwindcss';
 
 /* ============================================================
-   MOMENTS - Design Tokens
-   Apple-style minimal social feed. Warm monochrome + single
-   saturated rose accent. Self-hosted Geist (no Inter, no
-   external Google Fonts link).
+   MOMENTS - Design Tokens (WeChat Moments style)
+   浅灰页面背景 + 白色卡片 + 微信绿强调 + 点赞红。
+   中文系统字体，小圆角，极弱/无阴影（靠底色差分层），
+   纯色顶栏。保留亮/暗双模式与对比度 AA。
    ============================================================ */
-
-/* ---------- Self-hosted Geist with graceful fallback ----------
-   We prefer a local Geist installation (Apple devices have it) and try a
-   self-hosted variable font file as second choice. If neither is available,
-   the browser falls back to the system stack defined on --font-sans and
-   --font-mono without breaking the layout.
-
-   To use the self-hosted files, download them to public/fonts/ from:
-     https://github.com/vercel/geist-font/raw/main/packages/next/src/fonts/Geist-Variable.woff2
-     https://github.com/vercel/geist-font/raw/main/packages/next/src/fonts/GeistMono-Variable.woff2
-*/
-@font-face {
-  font-family: 'Geist';
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src:
-    local('Geist'),
-    local('Geist Variable'),
-    url('/fonts/Geist-Variable.woff2') format('woff2-variations');
-}
-@font-face {
-  font-family: 'Geist Mono';
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src:
-    local('Geist Mono'),
-    local('Geist Mono Variable'),
-    url('/fonts/GeistMono-Variable.woff2') format('woff2-variations');
-}
 
 /* ---------- Tailwind v4 theme tokens ---------- */
 @theme {
-  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Helvetica Neue', sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', monospace;
+  --font-sans: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB',
+    system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Menlo', monospace;
 
-  /* Warm monochrome scale (NOT pure black / pure white) */
-  --color-canvas: #fbfbfa; /* warm bone background */
-  --color-surface: #ffffff; /* card surface */
-  --color-surface-2: #f7f6f3; /* subtle raised surface */
-  --color-ink: #18181a; /* off-black primary text */
-  --color-ink-soft: #3f3f46; /* secondary text */
-  --color-ink-muted: #787774; /* muted meta text */
-  --color-hairline: rgba(0, 0, 0, 0.06); /* 1px dividers */
+  /* WeChat light palette */
+  --color-canvas: #ededed; /* 朋友圈浅灰背景 */
+  --color-surface: #ffffff; /* 卡片表面 */
+  --color-surface-2: #f7f7f7; /* 输入框 / 分割面 */
+  --color-ink: #1a1a1a; /* 主文字 */
+  --color-ink-soft: #4a4a4a; /* 次文字 */
+  --color-ink-muted: #8a8a8a; /* 时间 / 弱文字 */
+  --color-hairline: rgba(0, 0, 0, 0.08); /* 1px 分割线 */
 
-  /* Single accent - saturated Apple-style rose, locked across whole page */
-  --color-accent: #ff3b5c;
-  --color-accent-soft: #ffe4ea;
-  --color-accent-ink: #b3123a;
+  /* 微信绿（链接 / 主按钮 / 焦点） */
+  --color-accent: #07c160;
+  --color-accent-soft: #d4f4e0;
+  --color-accent-ink: #057a3c;
+
+  /* 点赞红（微信点赞） */
+  --color-like: #fa5151;
+  /* 链接蓝灰（微信链接） */
+  --color-link: #576b95;
 
   /* Dark mode counterparts */
-  --color-canvas-dark: #0e0e10;
-  --color-surface-dark: #161618;
-  --color-surface-2-dark: #1c1c1f;
-  --color-ink-dark: #f4f4f5;
-  --color-ink-soft-dark: #c4c4c8;
-  --color-ink-muted-dark: #8a8a90;
-  --color-hairline-dark: rgba(255, 255, 255, 0.08);
+  --color-canvas-dark: #111111;
+  --color-surface-dark: #1a1a1a;
+  --color-surface-2-dark: #242424;
+  --color-ink-dark: #e6e6e6;
+  --color-ink-soft-dark: #b3b3b3;
+  --color-ink-muted-dark: #808080;
+  --color-hairline-dark: rgba(255, 255, 255, 0.1);
 
-  /* Shape consistency lock - ONE radius scale for the whole app */
-  --radius-card: 16px;
-  --radius-control: 12px;
+  /* 统一圆角（克制，微信风格） */
+  --radius-card: 8px;
+  --radius-control: 6px;
+  --radius-img: 4px;
   --radius-pill: 9999px;
 }
 
@@ -101,23 +77,14 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    scroll-behavior: smooth;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
-    }
   }
 
   body {
     background-color: var(--bg);
     color: var(--fg);
     font-family: var(--font-sans);
-    font-feature-settings: 'cv11', 'ss01';
-    letter-spacing: -0.011em;
     min-height: 100dvh;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   ::selection {
@@ -125,7 +92,7 @@
     color: var(--color-accent-ink);
   }
 
-  /* Focus ring - accessible, accent-tinted */
+  /* Focus ring - 微信绿，可访问 */
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
@@ -135,86 +102,63 @@
 
 /* ---------- Reusable component primitives ---------- */
 @layer components {
-  /* Card - single radius system, tinted soft shadow (no pure-black drop) */
+  /* 卡片 — 白底小圆角 + 1px 细边，无投影（靠底色差分层，微信风格） */
   .m-card {
     background-color: var(--card);
     border-radius: var(--radius-card);
     border: 1px solid var(--line);
-    box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.02),
-      0 2px 24px rgba(0, 0, 0, 0.04);
-  }
-  @media (prefers-color-scheme: dark) {
-    .m-card {
-      box-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.2),
-        0 2px 24px rgba(0, 0, 0, 0.3);
-    }
   }
 
-  /* Apple Liquid Glass - WEB APPROXIMATION (not an official package).
-     backdrop-filter + layered borders + highlight. Solid fallback under
-     prefers-reduced-transparency. */
+  /* 顶栏 — 纯色，非毛玻璃（微信顶栏） */
   .m-glass {
     position: relative;
-    background: rgba(251, 251, 250, 0.72);
-    backdrop-filter: blur(24px) saturate(180%) contrast(1.05);
-    -webkit-backdrop-filter: blur(24px) saturate(180%) contrast(1.05);
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      0 8px 32px rgba(0, 0, 0, 0.06);
-  }
-  @media (prefers-color-scheme: dark) {
-    .m-glass {
-      background: rgba(14, 14, 16, 0.72);
-      border-color: rgba(255, 255, 255, 0.08);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.08),
-        0 8px 32px rgba(0, 0, 0, 0.4);
-    }
-  }
-  @media (prefers-reduced-transparency: reduce) {
-    .m-glass {
-      background: var(--color-canvas);
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-    }
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
   }
 
-  /* Primary button - ink fill, micro scale on active */
+  /* 主按钮 — 微信绿填充 */
   .m-btn-primary {
-    background-color: var(--color-ink);
-    color: var(--color-canvas);
+    background-color: var(--color-accent);
+    color: #ffffff;
     border-radius: var(--radius-control);
     font-weight: 500;
-    letter-spacing: -0.01em;
     transition:
-      transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.15s ease,
       background-color 0.2s ease;
   }
   .m-btn-primary:hover {
-    background-color: #333335;
+    background-color: #06ad56;
   }
   .m-btn-primary:active {
     transform: scale(0.98);
   }
   @media (prefers-color-scheme: dark) {
     .m-btn-primary {
-      background-color: var(--color-ink-dark);
-      color: var(--color-canvas-dark);
+      background-color: var(--color-accent);
+      color: #ffffff;
     }
     .m-btn-primary:hover {
-      background-color: #e4e4e7;
+      background-color: #06ad56;
     }
   }
 
-  /* Meta text - mono, muted, for timestamps & counts */
+  /* 次要按钮（描边） */
+  .m-btn-ghost {
+    background-color: transparent;
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+  }
+  .m-btn-ghost:hover {
+    background-color: var(--card-2);
+  }
+
+  /* Meta 文字 — 普通无衬线小字，灰 */
   .m-meta {
-    font-family: var(--font-mono);
     font-size: 0.78rem;
     color: var(--fg-muted);
-    letter-spacing: 0.01em;
   }
 }
 
@@ -239,7 +183,7 @@
     background: linear-gradient(
       90deg,
       transparent,
-      rgba(255, 255, 255, 0.55),
+      rgba(0, 0, 0, 0.06),
       transparent
     );
     animation: m-shimmer 1.6s infinite;
@@ -258,14 +202,5 @@
     .m-skeleton::after {
       animation: none;
     }
-  }
-
-  /* Blur-up image loading */
-  .m-img-blurup {
-    filter: blur(18px);
-    transition: filter 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .m-img-blurup.is-loaded {
-    filter: blur(0);
   }
 }

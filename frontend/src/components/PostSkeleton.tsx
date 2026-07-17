@@ -27,7 +27,7 @@ export function PostSkeleton() {
 
         {/* Image skeleton */}
         <div className="mt-4">
-          <div className="m-skeleton aspect-[4/3] w-full rounded-xl" />
+          <div className="m-skeleton aspect-[4/3] w-full rounded-md" />
         </div>
 
         {/* Footer skeleton */}

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
 import { PostCard } from './PostCard';
 import { ProfileHeader } from './ProfileHeader';
 import { NoteBlank } from '@phosphor-icons/react';
@@ -13,7 +12,6 @@ import { AUTHOR_NAME } from '../utils/config';
 const PAGE_SIZE = 10;
 
 export function Feed() {
-  const reduce = useReducedMotion();
   const visitorId = useVisitorId();
   const [posts, setPosts] = useState<PostDTO[]>([]);
   const [profile, setProfile] = useState<ProfileDTO | null>(null);
@@ -129,12 +127,7 @@ export function Feed() {
   // 主内容区：无动态时显示空状态卡片；有动态时显示列表
   const feedBody =
     posts.length === 0 ? (
-      <motion.div
-        className="m-card p-12 text-center"
-        initial={reduce ? false : { opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-      >
+      <div className="m-card p-12 text-center">
         <div
           className="mx-auto flex h-14 w-14 items-center justify-center rounded-full"
           style={{
@@ -156,7 +149,7 @@ export function Feed() {
         >
           作者还没有分享任何内容，稍后再来看看吧~
         </p>
-      </motion.div>
+      </div>
     ) : (
       <>
         {posts.map((post, i) => (

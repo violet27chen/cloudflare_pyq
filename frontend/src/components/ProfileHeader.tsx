@@ -180,7 +180,7 @@ export function ProfileHeader() {
           <img
             src={cover}
             alt=""
-            className="max-h-[90vh] max-w-[95vw] rounded-lg object-contain shadow-2xl"
+            className="max-h-[90vh] max-w-[95vw] rounded-lg object-contain"
             onClick={(e) => e.stopPropagation()}
           />
         </div>

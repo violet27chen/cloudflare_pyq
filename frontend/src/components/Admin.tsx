@@ -115,7 +115,7 @@ export function Admin() {
                 onChange={(e) =>
                   setState((s) => ({ ...s, password: e.target.value }))
                 }
-                className="w-full rounded-xl border px-3.5 py-2.5 text-[15px] outline-none transition-colors focus:border-[var(--color-accent)]"
+                className="w-full rounded-md border px-3.5 py-2.5 text-[15px] outline-none transition-colors focus:border-[var(--color-accent)]"
                 style={{
                   backgroundColor: 'var(--color-surface-2)',
                   borderColor: 'var(--line)',
@@ -475,7 +475,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                 onChange={(e) =>
                   setProfileDraft((p) => ({ ...p, display_name: e.target.value }))
                 }
-                className="w-full rounded-xl border px-3.5 py-2.5 text-[15px] outline-none transition-colors focus:border-[var(--color-accent)]"
+                className="w-full rounded-md border px-3.5 py-2.5 text-[15px] outline-none transition-colors focus:border-[var(--color-accent)]"
                 style={{
                   backgroundColor: 'var(--color-surface-2)',
                   borderColor: 'var(--line)',
@@ -502,7 +502,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                 onChange={(e) =>
                   setProfileDraft((p) => ({ ...p, bio: e.target.value }))
                 }
-                className="w-full resize-none rounded-xl border p-3.5 text-[15px] leading-relaxed outline-none transition-colors focus:border-[var(--color-accent)]"
+                className="w-full resize-none rounded-md border p-3.5 text-[15px] leading-relaxed outline-none transition-colors focus:border-[var(--color-accent)]"
                 style={{
                   backgroundColor: 'var(--color-surface-2)',
                   borderColor: 'var(--line)',
@@ -542,7 +542,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
               </div>
               <div className="flex-1">
                 <label
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2 text-sm transition-colors ${
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm transition-colors ${
                     uploadingAvatar ? 'opacity-50' : ''
                   }`}
                   style={{
@@ -615,7 +615,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
               </div>
               <div className="flex-1">
                 <label
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2 text-sm transition-colors ${
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm transition-colors ${
                     uploadingCover ? 'opacity-50' : ''
                   }`}
                   style={{
@@ -764,7 +764,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
 
         {sidebarFormOpen && (
           <motion.div
-            className="space-y-3 rounded-xl border p-4"
+            className="space-y-3 rounded-md border p-4"
             initial={reduce ? false : { opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             style={{
@@ -923,7 +923,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
 
             {/* Modal */}
             <motion.div
-              className="fixed left-1/2 top-8 z-50 w-full max-w-[560px] -translate-x-1/2 overflow-hidden rounded-2xl"
+              className="fixed left-1/2 top-8 z-50 w-full max-w-[560px] -translate-x-1/2 overflow-hidden rounded-lg"
               style={{ backgroundColor: 'var(--card)', boxShadow: '0 24px 80px rgba(0,0,0,0.25)' }}
               initial={reduce ? false : { opacity: 0, scale: 0.95, y: -20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -953,7 +953,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                   placeholder="分享你的想法... （支持 Markdown）"
                   rows={6}
                   maxLength={5000}
-                  className="w-full resize-none rounded-xl border p-4 text-[15px] leading-relaxed outline-none transition-colors focus:border-[var(--color-accent)]"
+                  className="w-full resize-none rounded-md border p-4 text-[15px] leading-relaxed outline-none transition-colors focus:border-[var(--color-accent)]"
                   style={{
                     backgroundColor: 'var(--color-surface-2)',
                     borderColor: 'var(--line)',
@@ -1035,7 +1035,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
               onClick={() => setDeleteConfirm(null)}
             />
             <motion.div
-              className="fixed left-1/2 top-1/2 z-[60] w-full max-w-[400px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl p-6"
+              className="fixed left-1/2 top-1/2 z-[60] w-full max-w-[400px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg p-6"
               style={{ backgroundColor: 'var(--card)', boxShadow: '0 24px 80px rgba(0,0,0,0.25)' }}
               initial={reduce ? false : { opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1073,7 +1073,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                 <button
                   type="button"
                   onClick={() => setDeleteConfirm(null)}
-                  className="rounded-xl px-5 py-2 text-sm transition-colors hover:bg-[var(--color-surface-2)]"
+                  className="rounded-md px-5 py-2 text-sm transition-colors hover:bg-[var(--color-surface-2)]"
                   style={{ color: 'var(--fg-muted)' }}
                 >
                   取消
@@ -1081,7 +1081,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                 <button
                   type="button"
                   onClick={confirmDelete}
-                  className="rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors"
+                  className="rounded-md px-5 py-2.5 text-sm font-medium text-white transition-colors"
                   style={{ backgroundColor: 'var(--color-accent)' }}
                 >
                   确认删除

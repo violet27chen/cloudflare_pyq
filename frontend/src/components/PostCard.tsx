@@ -1,6 +1,5 @@
 'use client';
 
-import { motion, useReducedMotion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import { ImageGrid } from './ImageGrid';
@@ -18,20 +17,8 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, visitorId, index, authorName, authorAvatar }: PostCardProps) {
-  const reduce = useReducedMotion();
-
   return (
-    <motion.article
-      className="m-card overflow-hidden"
-      initial={reduce ? false : { opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.15 }}
-      transition={{
-        duration: 0.5,
-        delay: index * 0.06,
-        ease: [0.16, 1, 0.3, 1],
-      }}
-    >
+    <article className="m-card overflow-hidden">
       <div className="p-5 sm:p-6">
         {/* Header: avatar + name + timestamp */}
         <div className="flex items-center gap-3">
@@ -88,6 +75,6 @@ export function PostCard({ post, visitorId, index, authorName, authorAvatar }: P
           />
         </div>
       </div>
-    </motion.article>
+    </article>
   );
 }
