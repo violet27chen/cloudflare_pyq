@@ -41,6 +41,7 @@ export function ProfileHeader() {
   const name = profile?.display_name || AUTHOR_NAME;
   const avatar = profile?.avatar_url;
   const cover = profile?.cover_image_url;
+  const bio = profile?.bio;
 
   const openCover = () => {
     if (cover) setShowCover(true);
@@ -119,10 +120,16 @@ export function ProfileHeader() {
               </span>
             </div>
           </div>
+          {bio && (
+            <p className="px-5 pt-3 text-sm leading-relaxed" style={{ color: 'var(--fg-muted)' }}>
+              {bio}
+            </p>
+          )}
         </>
       ) : (
-        /* 无背景图：仅显示一行头像 + 名字 */
-        <div className="flex items-center justify-start gap-2.5 px-4 py-3">
+        <>
+          /* 无背景图：仅显示一行头像 + 名字 */
+          <div className="flex items-center justify-start gap-2.5 px-4 py-3">
           <div
             className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 text-sm font-bold sm:h-11 sm:w-11"
             style={{
@@ -145,6 +152,12 @@ export function ProfileHeader() {
             {name}
           </span>
         </div>
+        {bio && (
+          <p className="px-4 pt-1 text-sm leading-relaxed" style={{ color: 'var(--fg-muted)' }}>
+            {bio}
+          </p>
+        )}
+        </>
       )}
 
       {/* 背景图大图查看（无模糊原图） */}
