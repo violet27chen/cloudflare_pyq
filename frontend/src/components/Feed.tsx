@@ -118,10 +118,9 @@ export function Feed() {
   const authorName = profile?.display_name ?? '';
   const authorAvatar = profile?.avatar_url ?? undefined;
 
-  // Split sidebar items by column placement.
+  // Split sidebar items by column placement (left/right; the middle is the feed itself).
   const leftItems = sidebarItems.filter((i) => i.placement === 'left');
   const rightItems = sidebarItems.filter((i) => i.placement === 'right');
-  const mainItems = sidebarItems.filter((i) => i.placement === 'main');
 
   // Full-page background layer (image or video).
   const bgLayer =
@@ -243,11 +242,6 @@ export function Feed() {
         <div className="min-w-0 flex-1 space-y-4">
           {/* 个人主页头部（朋友圈风格）— 无论有无动态都先显示封面区域 */}
           {profile && <ProfileHeader profile={profile} />}
-
-          {/* 中间主区域内容（admin 可在后台编辑） */}
-          {mainItems.map((item) => (
-            <SidebarCard key={item.id} item={item} />
-          ))}
 
           {feedBody}
         </div>

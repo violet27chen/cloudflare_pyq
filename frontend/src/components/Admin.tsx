@@ -923,22 +923,13 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
         )}
       </div>
 
-      {/* ====== 三列内容管理（左 / 中 / 右） ====== */}
+      {/* ====== 两列内容管理（左 / 右）— 中间为主区域即动态内容，不单独设置 ====== */}
       <div className="mt-8 grid gap-6">
         <ColumnManager
           placement="left"
           label="左侧列"
           token={token}
           items={sidebarItems.filter((i) => i.placement === 'left')}
-          saving={sidebarSaving}
-          onAdd={handleAddSidebar}
-          onDelete={handleDeleteSidebar}
-        />
-        <ColumnManager
-          placement="main"
-          label="中间主区域"
-          token={token}
-          items={sidebarItems.filter((i) => i.placement === 'main')}
           saving={sidebarSaving}
           onAdd={handleAddSidebar}
           onDelete={handleDeleteSidebar}
