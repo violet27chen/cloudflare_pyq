@@ -44,12 +44,7 @@ export function ProfileHeader() {
             className="h-full w-full object-cover"
           />
         ) : (
-          <div
-            className="h-full w-full"
-            style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            }}
-          />
+          <div className="m-cover-fallback h-full w-full" />
         )}
         {/* 底部渐变遮罩 */}
         <div

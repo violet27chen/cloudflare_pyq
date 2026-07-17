@@ -218,6 +218,17 @@
   }
 }
 
+/* ---------- Cover fallback (no AI purple; neutral warm gradient) ---------- */
+.m-cover-fallback {
+  background-color: var(--color-surface-2);
+  background-image: linear-gradient(135deg, #f3eef0 0%, #e9e7ea 100%);
+}
+@media (prefers-color-scheme: dark) {
+  .m-cover-fallback {
+    background-image: linear-gradient(135deg, #202023 0%, #161618 100%);
+  }
+}
+
 /* ---------- Utility: skeleton shimmer ---------- */
 @layer utilities {
   @keyframes m-shimmer {

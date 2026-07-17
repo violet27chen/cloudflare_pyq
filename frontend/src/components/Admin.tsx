@@ -19,6 +19,7 @@ import {
   type SidebarItemDTO,
 } from '../utils/api';
 import { formatRelative } from '../utils/time';
+import { Warning, Image } from '@phosphor-icons/react';
 
 /* ============================================================
  * Admin panel - /admin
@@ -416,7 +417,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
           className="text-xl font-semibold tracking-tight"
           style={{ color: 'var(--fg)' }}
         >
-          🌸 Moments 管理
+          Moments 管理
         </h1>
         <button
           type="button"
@@ -453,7 +454,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
             className="text-sm font-semibold uppercase tracking-wider"
             style={{ color: 'var(--fg-muted)' }}
           >
-            👤 个人信息
+            个人信息
           </h2>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -557,7 +558,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                     className="hidden"
                     disabled={uploadingAvatar}
                   />
-                  {uploadingAvatar ? '⏳ 上传中...' : '📷 上传头像'}
+                  {uploadingAvatar ? '上传中...' : '上传头像'}
                 </label>
                 {profileDraft.avatar_url && (
                   <button
@@ -630,7 +631,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                     className="hidden"
                     disabled={uploadingCover}
                   />
-                  {uploadingCover ? '⏳ 上传中...' : '🖼️ 上传封面'}
+                  {uploadingCover ? '上传中...' : '上传封面'}
                 </label>
                 {profileDraft.cover_image_url && (
                   <button
@@ -666,7 +667,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
             disabled={savingProfile}
             className="m-btn-primary mt-2 px-6 py-2.5 text-sm disabled:opacity-50"
           >
-            {savingProfile ? '保存中...' : '💾 保存个人信息'}
+            {savingProfile ? '保存中...' : '保存个人信息'}
           </button>
         </div>
       )}
@@ -678,14 +679,14 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
           onClick={openCreateModal}
           className="m-btn-primary inline-flex items-center gap-2 px-5 py-2.5 text-sm"
         >
-          ✏️ 写新动态
+          写新动态
         </button>
       </div>
 
       {/* ====== 帖子列表 ====== */}
       <div className="space-y-3">
         <h2 className="m-meta mb-2 flex items-center gap-2">
-          📝 动态列表
+          动态列表
         </h2>
         {loading ? (
           <div className="m-card p-6 text-center">
@@ -710,9 +711,9 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                 </p>
                 <div className="m-meta mt-1.5 flex items-center gap-3">
                   <span>{formatRelative(post.created_at)}</span>
-                  <span>❤️ {post.like_count}</span>
+                  <span>{post.like_count} 赞</span>
                   {post.images.length > 0 && (
-                    <span>🖼️ {post.images.length} 张图</span>
+                    <span>{post.images.length} 张图</span>
                   )}
                 </div>
               </div>
@@ -728,7 +729,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                 <button
                   type="button"
                   onClick={() => requestDelete(post)}
-                  className="rounded-lg px-2.5 py-1.5 text-sm transition-colors hover:bg-[var(--color-ac-soft)]"
+                  className="rounded-lg px-2.5 py-1.5 text-sm transition-colors hover:bg-[var(--color-accent-soft)]"
                   style={{ color: 'var(--color-accent)' }}
                 >
                   删除
@@ -746,7 +747,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
             className="text-sm font-semibold uppercase tracking-wider"
             style={{ color: 'var(--fg-muted)' }}
           >
-            📌 侧边栏管理
+            侧边栏管理
           </h2>
           <button
             type="button"
@@ -787,7 +788,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                       sidebarDraft.type === t ? 'var(--color-accent)' : 'var(--fg-muted)',
                   }}
                 >
-                  {t === 'image' ? '🖼️ 图片' : t === 'text' ? '📄 文本' : '📝 Markdown'}
+                  {t === 'image' ? '图片' : t === 'text' ? '文本' : 'Markdown'}
                 </button>
               ))}
             </div>
@@ -855,7 +856,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
               disabled={sidebarSaving || !sidebarDraft.content.trim()}
               className="m-btn-primary w-full py-2 text-sm disabled:opacity-50"
             >
-              {sidebarSaving ? '添加中...' : '✅ 添加到侧边栏'}
+              {sidebarSaving ? '添加中...' : '添加到侧边栏'}
             </button>
           </motion.div>
         )}
@@ -872,16 +873,11 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                 <span
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold"
                   style={{
-                    backgroundColor:
-                      item.type === 'image'
-                        ? '#dbeafe'
-                        : item.type === 'markdown'
-                          ? '#fef3c7'
-                          : 'var(--color-surface-2)',
+                    backgroundColor: 'var(--color-surface-2)',
                     color: 'var(--fg-muted)',
                   }}
                 >
-                  {item.type === 'image' ? '🖼' : item.type === 'markdown' ? '📝' : '📄'}
+                  {item.type === 'image' ? '图' : item.type === 'markdown' ? 'MD' : '文'}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p
@@ -897,7 +893,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                 <button
                   type="button"
                   onClick={() => handleDeleteSidebar(item.id)}
-                  className="shrink-0 rounded-md px-2 py-1 text-xs transition-colors hover:bg-[var(--color-ac-soft)]"
+                  className="shrink-0 rounded-md px-2 py-1 text-xs transition-colors hover:bg-[var(--color-accent-soft)]"
                   style={{ color: 'var(--color-accent)' }}
                 >
                   删除
@@ -937,7 +933,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5" style={{ borderColor: 'var(--line)' }}>
                 <h3 className="text-base font-semibold" style={{ color: 'var(--fg)' }}>
-                  {editingPost ? '✏️ 编辑动态' : '✍️ 写新动态'}
+                  {editingPost ? '编辑动态' : '写新动态'}
                 </h3>
                 <button
                   type="button"
@@ -945,7 +941,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                   className="flex h-8 w-8 items-center justify-center rounded-full text-lg transition-colors hover:bg-[var(--color-surface-2)]"
                   style={{ color: 'var(--fg-muted)' }}
                 >
-                  ✕
+                  ×
                 </button>
               </div>
 
@@ -999,11 +995,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                     className="hidden"
                     disabled={modalUploading || modalImages.length >= 9}
                   />
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <polyline points="21 15 16 10 5 21" />
-                  </svg>
+                  <Image size={18} />
                   {modalUploading ? '上传中...' : `添加图片 (${modalImages.length}/9)`}
                 </label>
 
@@ -1054,7 +1046,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                   className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-2xl"
                   style={{ backgroundColor: 'var(--color-accent-soft)' }}
                 >
-                  ⚠️
+                  <Warning size={24} weight="fill" className="text-[var(--color-accent)]" />
                 </div>
                 <div className="flex-1">
                   <h3
