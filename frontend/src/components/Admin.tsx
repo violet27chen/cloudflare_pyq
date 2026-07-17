@@ -26,6 +26,31 @@ import { formatRelative } from '../utils/time';
 import { Warning, Image } from '@phosphor-icons/react';
 import { ImageCropper } from './ImageCropper';
 
+/* 上传进度条：percent 为 0-100；传 null 时不显示。 */
+function UploadProgress({ percent }: { percent: number | null }) {
+  if (percent === null || percent === undefined) return null;
+  const clamped = Math.max(0, Math.min(100, percent));
+  return (
+    <div className="mt-2">
+      <div
+        className="h-1.5 w-full overflow-hidden rounded-full"
+        style={{ backgroundColor: 'var(--card-2)' }}
+      >
+        <div
+          className="h-full rounded-full transition-[width] duration-150"
+          style={{ width: `${clamped}%`, backgroundColor: 'var(--color-accent)' }}
+        />
+      </div>
+      <p
+        className="mt-1 text-right text-[10px] tabular-nums"
+        style={{ color: 'var(--fg-muted)' }}
+      >
+        {clamped}%
+      </p>
+    </div>
+  );
+}
+
 /* 主题颜色字段：顺序即展示顺序。defaultHex 用于取色器初始显示（留空=默认）。 */
 const COLOR_FIELDS: { key: keyof ThemeColors; label: string; defaultHex: string }[] = [
   { key: 'bg', label: '页面背景', defaultHex: '#ededed' },
@@ -236,6 +261,12 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
   };
   const [themeDraft, setThemeDraft] = useState<ThemeColors>(EMPTY_COLORS);
 
+  /* 上传进度（0-100 / null 表示无上传中）。分别跟踪各上传点。 */
+  const [avatarProgress, setAvatarProgress] = useState<number | null>(null);
+  const [coverProgress, setCoverProgress] = useState<number | null>(null);
+  const [modalProgress, setModalProgress] = useState<number | null>(null);
+  const [bgProgress, setBgProgress] = useState<number | null>(null);
+
   // Load data
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -291,13 +322,15 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
       const file = e.target.files?.[0];
       if (!file) return;
       setUploadingAvatar(true);
+      setAvatarProgress(0);
       try {
-        const { url } = await uploadImage(token, file);
+        const { url } = await uploadImage(token, file, setAvatarProgress);
         setProfileDraft((d) => ({ ...d, avatar_url: url }));
       } catch (err) {
         alert(err instanceof Error ? err.message : '头像上传失败');
       } finally {
         setUploadingAvatar(false);
+        setAvatarProgress(null);
         e.target.value = '';
       }
     },
@@ -309,13 +342,15 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
       const file = e.target.files?.[0];
       if (!file) return;
       setUploadingCover(true);
+      setCoverProgress(0);
       try {
-        const { url } = await uploadImage(token, file);
+        const { url } = await uploadImage(token, file, setCoverProgress);
         setProfileDraft((d) => ({ ...d, cover_image_url: url }));
       } catch (err) {
         alert(err instanceof Error ? err.message : '背景图上传失败');
       } finally {
         setUploadingCover(false);
+        setCoverProgress(null);
         e.target.value = '';
       }
     },
@@ -327,16 +362,18 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
       const files = e.target.files;
       if (!files || files.length === 0) return;
       setModalUploading(true);
+      setModalProgress(0);
       try {
         for (const file of Array.from(files)) {
           if (modalImages.length >= 9) break;
-          const { url } = await uploadImage(token, file);
+          const { url } = await uploadImage(token, file, setModalProgress);
           setModalImages((prev) => [...prev, url]);
         }
       } catch (err) {
         alert(err instanceof Error ? err.message : '图片上传失败');
       } finally {
         setModalUploading(false);
+        setModalProgress(null);
         e.target.value = '';
       }
     },
@@ -350,13 +387,15 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
       const file = e.target.files?.[0];
       if (!file) return;
       setUploadingBg(true);
+      setBgProgress(0);
       try {
-        const { url } = await uploadMedia(token, file, 'bg');
+        const { url } = await uploadMedia(token, file, 'bg', setBgProgress);
         setBgDraft((d) => ({ ...d, url }));
       } catch (err) {
         alert(err instanceof Error ? err.message : '背景上传失败');
       } finally {
         setUploadingBg(false);
+        setBgProgress(null);
         e.target.value = '';
       }
     },
@@ -662,6 +701,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                     清除
                   </button>
                 )}
+                <UploadProgress percent={avatarProgress} />
               </div>
             </div>
             <input
@@ -735,6 +775,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                     清除
                   </button>
                 )}
+                <UploadProgress percent={coverProgress} />
               </div>
             </div>
             <input
@@ -887,6 +928,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
         >
           保存背景
         </button>
+        <UploadProgress percent={bgProgress} />
       </div>
 
       {/* ====== 主题颜色（所有区域背景与文本可自定义） ====== */}
@@ -1145,6 +1187,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                   <Image size={18} />
                   {modalUploading ? '上传中...' : `添加图片 (${modalImages.length}/9)`}
                 </label>
+                <UploadProgress percent={modalProgress} />
 
                 <div className="flex items-center gap-3">
                   <button
@@ -1279,6 +1322,7 @@ function ColumnManager({
   // 裁剪流程
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [cropProgress, setCropProgress] = useState<number | null>(null);
 
   const reset = () => {
     setTextFormat('text');
@@ -1299,13 +1343,15 @@ function ColumnManager({
   const handleCropped = async (cropped: File) => {
     setCropFile(null);
     setUploading(true);
+    setCropProgress(0);
     try {
-      const { url } = await uploadMedia(token, cropped, 'post');
+      const { url } = await uploadMedia(token, cropped, 'post', setCropProgress);
       setImageUrl(url);
     } catch (err) {
       alert(err instanceof Error ? err.message : '图片上传失败');
     } finally {
       setUploading(false);
+      setCropProgress(null);
     }
   };
 
@@ -1425,26 +1471,29 @@ function ColumnManager({
                 </div>
               </div>
             ) : (
-              <label
-                className={`inline-flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm transition-colors ${
-                  uploading ? 'opacity-50' : ''
-                }`}
-                style={{
-                  borderColor: 'var(--line)',
-                  backgroundColor: 'var(--card)',
-                  color: 'var(--fg-soft)',
-                }}
-              >
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handlePickImage}
-                  className="hidden"
-                  disabled={uploading}
-                />
-                <Image size={16} />
-                {uploading ? '上传中...' : '上传并裁剪图片'}
-              </label>
+              <>
+                <label
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm transition-colors ${
+                    uploading ? 'opacity-50' : ''
+                  }`}
+                  style={{
+                    borderColor: 'var(--line)',
+                    backgroundColor: 'var(--card)',
+                    color: 'var(--fg-soft)',
+                  }}
+                >
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handlePickImage}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                  <Image size={16} />
+                  {uploading ? '上传中...' : '上传并裁剪图片'}
+                </label>
+                <UploadProgress percent={cropProgress} />
+              </>
             )}
           </div>
 

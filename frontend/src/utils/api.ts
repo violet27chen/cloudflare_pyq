@@ -219,34 +219,58 @@ export function updateSettings(
 }
 
 /** POST /api/upload (author only, multipart)
- *  kind: 'post' (image, default) | 'bg' (image or video, larger limit) */
-export async function uploadMedia(
+ *  kind: 'post' (image, default) | 'bg' (image or video, larger limit)
+ *  onProgress: 0-100 上传进度回调（基于 XHR upload，仅浏览器环境有效） */
+export function uploadMedia(
   token: string,
   file: File,
-  kind?: 'post' | 'bg',
+  kind: 'post' | 'bg' = 'post',
+  onProgress?: (percent: number) => void,
 ): Promise<{ url: string }> {
-  const url = `${API_BASE}/api/upload`;
-  const formData = new FormData();
-  formData.append('file', file);
-  if (kind) formData.append('kind', kind);
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
+  return new Promise((resolve, reject) => {
+    const url = `${API_BASE}/api/upload`;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('kind', kind);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    if (onProgress) {
+      xhr.upload.onprogress = (e: ProgressEvent) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      try {
+        const body = JSON.parse(xhr.responseText) as ApiResponse<{ url: string }>;
+        if (xhr.status >= 200 && xhr.status < 300 && body.ok && body.data) {
+          resolve(body.data);
+        } else {
+          reject(new Error(body.error?.message ?? `上传失败 (${xhr.status})`));
+        }
+      } catch {
+        reject(new Error(`上传失败 (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('网络错误，上传失败'));
+    xhr.onabort = () => reject(new Error('上传已取消'));
+
+    xhr.send(formData);
   });
-  const body = (await res.json()) as ApiResponse<{ url: string }>;
-  if (!body.ok || !body.data) {
-    throw new Error(body.error?.message ?? 'Upload failed.');
-  }
-  return body.data;
 }
 
 /** Post image upload (alias). */
 export function uploadImage(
   token: string,
   file: File,
+  onProgress?: (percent: number) => void,
 ): Promise<{ url: string }> {
-  return uploadMedia(token, file, 'post');
+  return uploadMedia(token, file, 'post', onProgress);
 }
 
 /* ---------- Sidebar (author only) ---------- */
