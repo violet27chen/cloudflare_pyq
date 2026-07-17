@@ -1,9 +1,8 @@
 ---
 import BaseLayout from '@layouts/BaseLayout.astro';
 import { Feed } from '@components/Feed';
+import { ProfileHeader } from '@components/ProfileHeader';
 import '../styles/global.css';
-
-const authorName = import.meta.env.PUBLIC_AUTHOR_NAME ?? 'L.';
 ---
 
 <BaseLayout>
@@ -11,15 +10,7 @@ const authorName = import.meta.env.PUBLIC_AUTHOR_NAME ?? 'L.';
   <header class="m-glass sticky top-0 z-40">
     <div class="mx-auto flex h-14 max-w-[640px] items-center justify-between px-4">
       <div class="flex items-center gap-2.5">
-        <div
-          class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold"
-          style="background-color: var(--color-surface-2); color: var(--fg); border: 1px solid var(--line)"
-        >
-          {authorName.charAt(0)}
-        </div>
-        <span class="text-[15px] font-medium" style="color: var(--fg)">
-          {authorName}
-        </span>
+        <ProfileHeader client:load />
       </div>
       <span class="m-meta">moments</span>
     </div>

@@ -40,6 +40,15 @@ CREATE TABLE IF NOT EXISTS likes (
 CREATE INDEX IF NOT EXISTS idx_likes_post ON likes(post_id);
 CREATE INDEX IF NOT EXISTS idx_likes_visitor ON likes(visitor_id);
 
+-- Single-row author profile (editable from /admin). id is always 'me'.
+CREATE TABLE IF NOT EXISTS profile (
+  id           TEXT PRIMARY KEY DEFAULT 'me',
+  display_name TEXT NOT NULL DEFAULT '',
+  bio          TEXT NOT NULL DEFAULT '',
+  avatar_url   TEXT NOT NULL DEFAULT '',
+  updated_at   TEXT NOT NULL
+);
+
 -- Keep updated_at fresh on edits (UTC ISO8601).
 CREATE TRIGGER IF NOT EXISTS trg_posts_touch
   AFTER UPDATE ON posts

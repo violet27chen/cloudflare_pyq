@@ -5,7 +5,8 @@ import { motion, useReducedMotion } from 'motion/react';
 import { PostCard } from './PostCard';
 import { FeedSkeleton } from './PostSkeleton';
 import { useVisitorId } from '../hooks/useVisitorId';
-import { fetchPosts, type PostDTO } from '../utils/api';
+import { fetchPosts, getProfile, type PostDTO, type ProfileDTO } from '../utils/api';
+import { AUTHOR_NAME } from '../utils/config';
 
 /**
  * The main feed island.
@@ -23,6 +24,7 @@ export function Feed() {
   const reduce = useReducedMotion();
   const visitorId = useVisitorId();
   const [posts, setPosts] = useState<PostDTO[]>([]);
+  const [profile, setProfile] = useState<ProfileDTO | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -30,6 +32,13 @@ export function Feed() {
   const [hasMore, setHasMore] = useState(true);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Load the author profile (public).
+  useEffect(() => {
+    getProfile()
+      .then(setProfile)
+      .catch(() => {});
+  }, []);
 
   // Initial load.
   const loadInitial = useCallback(async () => {
@@ -157,6 +166,42 @@ export function Feed() {
 
   return (
     <div className="space-y-4">
+      {/* Author profile intro */}
+      {profile && (
+        <div className="m-card flex items-center gap-4 p-5">
+          <div
+            className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full text-lg font-semibold"
+            style={{
+              backgroundColor: 'var(--color-surface-2)',
+              color: 'var(--fg)',
+              border: '1px solid var(--line)',
+            }}
+          >
+            {profile.avatar_url ? (
+              <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+            ) : (
+              (profile.display_name || AUTHOR_NAME).charAt(0)
+            )}
+          </div>
+          <div className="min-w-0">
+            <div
+              className="text-lg font-semibold tracking-tight"
+              style={{ color: 'var(--fg)' }}
+            >
+              {profile.display_name || AUTHOR_NAME}
+            </div>
+            {profile.bio && (
+              <p
+                className="mt-0.5 text-sm leading-relaxed"
+                style={{ color: 'var(--fg-muted)' }}
+              >
+                {profile.bio}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {posts.map((post, i) => (
         <PostCard
           key={post.id}

@@ -1,8 +1,10 @@
 name = "moments-api"
 account_id = "60ca3cd180ada95a860a2270fc12b937"
-main = "src/index.ts"
+main = "worker/src/index.ts"
 compatibility_date = "2025-01-15"
 compatibility_flags = ["nodejs_compat"]
+# Keep the *.workers.dev subdomain live as a fallback alongside the custom domain.
+workers_dev = true
 
 # Local dev only. Real secrets go in `wrangler secret put`, never committed.
 [vars]
@@ -10,11 +12,11 @@ ENVIRONMENT = "development"
 
 # Serve the built frontend (frontend/dist). SPA fallback for client routes.
 [assets]
-directory = "../frontend/dist"
+directory = "./frontend/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 
-# D1 (SQLite) database holding posts / post_images / likes.
+# D1 (SQLite) database holding posts / post_images / likes / profile.
 [[d1_databases]]
 binding = "DB"
 database_name = "moments"
@@ -24,6 +26,13 @@ database_id = "8ea9cdef-6d06-436e-b45a-599cc928b5ab"
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "moments-images"
+
+# Custom domain: route moments.qiyuan.icu to this Worker.
+# Requires the qiyuan.icu zone to be on Cloudflare; Cloudflare auto-creates
+# the DNS record + TLS certificate on deploy.
+[[routes]]
+pattern = "moments.qiyuan.icu"
+custom_domain = true
 
 # Required secrets (set with `wrangler secret put <NAME>`):
 #   ADMIN_JWT_SECRET   signs the short-lived author session token

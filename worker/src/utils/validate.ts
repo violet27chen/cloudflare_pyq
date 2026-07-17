@@ -69,6 +69,52 @@ export function assertPostInput(body: unknown): PostInput {
   return { content, image_urls };
 }
 
+/* ---------------- profile (author info) ---------------- */
+
+const PROFILE_NAME_MAX = 60;
+const PROFILE_BIO_MAX = 280;
+
+export interface ProfileInput {
+  display_name: string;
+  bio: string;
+  avatar_url: string;
+}
+
+/** Validate a profile body for PUT /api/profile. Returns normalized values. */
+export function assertProfileInput(body: unknown): ProfileInput {
+  if (!body || typeof body !== 'object') {
+    throw new ValidationError('Request body must be an object.');
+  }
+  const b = body as Record<string, unknown>;
+
+  const displayName =
+    typeof b.display_name === 'string' ? b.display_name.trim() : '';
+  if (displayName.length > PROFILE_NAME_MAX) {
+    throw new ValidationError(
+      `Display name must be at most ${PROFILE_NAME_MAX} characters.`,
+    );
+  }
+
+  const bio = typeof b.bio === 'string' ? b.bio : '';
+  if (bio.length > PROFILE_BIO_MAX) {
+    throw new ValidationError(
+      `Bio must be at most ${PROFILE_BIO_MAX} characters.`,
+    );
+  }
+
+  const avatar =
+    typeof b.avatar_url === 'string' ? b.avatar_url.trim() : '';
+  if (avatar && !IMAGE_URL_RE.test(avatar)) {
+    throw new ValidationError('Avatar URL is invalid.');
+  }
+
+  return {
+    display_name: displayName || 'L.',
+    bio,
+    avatar_url: avatar,
+  };
+}
+
 /** Parse a non-negative int query param with bounds. */
 export function parseIntQuery(
   raw: string | undefined,

@@ -9,7 +9,10 @@ import {
   deletePost,
   uploadImage,
   fetchPosts,
+  getProfile,
+  updateProfile,
   type PostDTO,
+  type ProfileDTO,
 } from '../utils/api';
 import { formatRelative } from '../utils/time';
 
@@ -164,6 +167,15 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     total_likes: number;
   } | null>(null);
 
+  // Profile (editable author info).
+  const [profile, setProfile] = useState<ProfileDTO | null>(null);
+  const [profileDraft, setProfileDraft] = useState({
+    display_name: '',
+    bio: '',
+    avatar_url: '',
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
+
   // Compose state.
   const [content, setContent] = useState('');
   const [images, setImages] = useState<string[]>([]);
@@ -171,18 +183,28 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
   const [publishing, setPublishing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Load posts + stats.
+  // Load posts + stats + profile.
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [postsRes, statsRes] = await Promise.all([
+      const profilePromise = getProfile().catch(() => null);
+      const [postsRes, statsRes, profileRes] = await Promise.all([
         fetchPosts({ limit: 50, visitorId: null }),
         fetch(`${import.meta.env.PUBLIC_API_BASE ?? ''}/api/stats`, {
           headers: { Authorization: `Bearer ${token}` },
         }).then((r) => r.json()),
+        profilePromise,
       ]);
       setPosts(postsRes.items);
       if (statsRes.ok) setStats(statsRes.data);
+      if (profileRes) {
+        setProfile(profileRes);
+        setProfileDraft({
+          display_name: profileRes.display_name,
+          bio: profileRes.bio,
+          avatar_url: profileRes.avatar_url,
+        });
+      }
     } catch {
       // Silently fail; user can refresh.
     } finally {
@@ -258,6 +280,19 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     [token, loadData],
   );
 
+  // Save profile handler.
+  const handleSaveProfile = useCallback(async () => {
+    setSavingProfile(true);
+    try {
+      const updated = await updateProfile(token, profileDraft);
+      setProfile(updated);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Save failed.');
+    } finally {
+      setSavingProfile(false);
+    }
+  }, [token, profileDraft]);
+
   return (
     <div className="mx-auto max-w-[640px] px-4 pb-16 pt-6">
       {/* Header */}
@@ -277,6 +312,102 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
           Sign out
         </button>
       </div>
+
+      {/* Profile editor */}
+      {profile && (
+        <div className="m-card mb-6 space-y-3 p-5">
+          <h2
+            className="text-sm font-medium"
+            style={{ color: 'var(--fg)' }}
+          >
+            Profile
+          </h2>
+
+          <div>
+            <label
+              htmlFor="profile-name"
+              className="mb-1.5 block text-sm font-medium"
+              style={{ color: 'var(--fg)' }}
+            >
+              Display name
+            </label>
+            <input
+              id="profile-name"
+              type="text"
+              value={profileDraft.display_name}
+              maxLength={60}
+              onChange={(e) =>
+                setProfileDraft((p) => ({ ...p, display_name: e.target.value }))
+              }
+              className="w-full rounded-xl border px-3.5 py-2.5 text-[15px] outline-none transition-colors focus:border-[var(--color-accent)]"
+              style={{
+                backgroundColor: 'var(--color-surface-2)',
+                borderColor: 'var(--line)',
+                color: 'var(--fg)',
+              }}
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="profile-bio"
+              className="mb-1.5 block text-sm font-medium"
+              style={{ color: 'var(--fg)' }}
+            >
+              Bio
+            </label>
+            <textarea
+              id="profile-bio"
+              value={profileDraft.bio}
+              maxLength={280}
+              rows={2}
+              onChange={(e) =>
+                setProfileDraft((p) => ({ ...p, bio: e.target.value }))
+              }
+              className="w-full resize-none rounded-xl border p-3.5 text-[15px] leading-relaxed outline-none transition-colors focus:border-[var(--color-accent)]"
+              style={{
+                backgroundColor: 'var(--color-surface-2)',
+                borderColor: 'var(--line)',
+                color: 'var(--fg)',
+              }}
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="profile-avatar"
+              className="mb-1.5 block text-sm font-medium"
+              style={{ color: 'var(--fg)' }}
+            >
+              Avatar URL
+            </label>
+            <input
+              id="profile-avatar"
+              type="url"
+              value={profileDraft.avatar_url}
+              placeholder="https://..."
+              onChange={(e) =>
+                setProfileDraft((p) => ({ ...p, avatar_url: e.target.value }))
+              }
+              className="w-full rounded-xl border px-3.5 py-2.5 text-[15px] outline-none transition-colors focus:border-[var(--color-accent)]"
+              style={{
+                backgroundColor: 'var(--color-surface-2)',
+                borderColor: 'var(--line)',
+                color: 'var(--fg)',
+              }}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSaveProfile}
+            disabled={savingProfile}
+            className="m-btn-primary px-5 py-2 text-sm disabled:opacity-50"
+          >
+            {savingProfile ? 'Saving...' : 'Save profile'}
+          </button>
+        </div>
+      )}
 
       {/* Stats strip */}
       {stats && (

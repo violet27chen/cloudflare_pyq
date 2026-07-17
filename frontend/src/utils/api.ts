@@ -15,6 +15,12 @@ export interface ListResult<T> {
   next_cursor: string | null;
 }
 
+export interface ProfileDTO {
+  display_name: string;
+  bio: string;
+  avatar_url: string;
+}
+
 interface ApiResponse<T> {
   ok: boolean;
   data?: T;
@@ -140,6 +146,23 @@ export function exchangeSession(password: string) {
       body: JSON.stringify({ password }),
     },
   );
+}
+
+/** GET /api/profile (public) */
+export function getProfile() {
+  return apiFetch<ProfileDTO>('/api/profile');
+}
+
+/** PUT /api/profile (author only) */
+export function updateProfile(
+  token: string,
+  data: Partial<ProfileDTO>,
+) {
+  return apiFetch<ProfileDTO>('/api/profile', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(data),
+  });
 }
 
 /** POST /api/upload (author only, multipart) */

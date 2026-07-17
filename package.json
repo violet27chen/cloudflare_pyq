@@ -7,14 +7,11 @@
   "packageManager": "pnpm@11.6.0",
   "scripts": {
     "dev": "pnpm --filter ./frontend dev",
-    "dev:worker": "pnpm --filter ./worker dev",
-    "build": "pnpm -r --filter=./frontend... build && pnpm -r --filter=./worker... build",
+    "dev:worker": "wrangler dev",
     "build:frontend": "pnpm --filter ./frontend build",
-    "build:worker": "pnpm --filter ./worker build",
     "preview": "pnpm --filter ./frontend preview",
     "typecheck": "pnpm -r typecheck",
-    "deploy:worker": "pnpm build:frontend && pnpm --filter ./worker deploy",
-    "deploy": "pnpm deploy:worker"
+    "deploy": "pnpm build:frontend && wrangler deploy"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

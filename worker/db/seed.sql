@@ -47,3 +47,7 @@ INSERT INTO likes (id, post_id, visitor_id, created_at) VALUES
   ('c0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000002', 'visitor_seed_0001', strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('c0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000002', 'visitor_seed_0004', strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('c0000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000004', 'visitor_seed_0005', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+
+-- Author profile (editable from /admin).
+INSERT INTO profile (id, display_name, bio, avatar_url, updated_at) VALUES
+  ('me', 'L.', 'Sharing moments, one at a time.', '', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));

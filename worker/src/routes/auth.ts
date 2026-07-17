@@ -32,7 +32,7 @@ auth.post('/session', async (c) => {
   }
 
   const token = await issueSessionToken(c.env, 'author');
-  return ok(c, { token, expires_in: SESSION_TTL_SECONDS }, 201);
+  return ok(c, { token, expires_in: SESSION_TTL_SECONDS }, 200);
 });
 
 export default auth;

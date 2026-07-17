@@ -61,6 +61,21 @@ export interface PostDTO {
   liked: boolean;
 }
 
+/** Author profile (editable from /admin). */
+export interface ProfileDTO {
+  display_name: string;
+  bio: string;
+  avatar_url: string;
+}
+
+export interface ProfileRow {
+  id: string;
+  display_name: string;
+  bio: string;
+  avatar_url: string;
+  updated_at: string;
+}
+
 /** Unified API response envelope. */
 export type ApiResponse<T> =
   | { ok: true; data: T }
