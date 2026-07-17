@@ -57,14 +57,28 @@ BEGIN
   UPDATE posts SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = NEW.id;
 END;
 
--- Sidebar items for the desktop two-column layout.
+-- Sidebar items for the three-column desktop layout
+-- (left column / middle main area / right column).
 -- Author-managed, publicly readable.
+--   placement: 'left' | 'main' | 'right'  (which column the item shows in)
+--   position : ordering within the same placement
 CREATE TABLE IF NOT EXISTS sidebar (
   id       TEXT PRIMARY KEY,
   type     TEXT NOT NULL DEFAULT 'text' CHECK(type IN ('image','text','markdown')),
   title    TEXT NOT NULL DEFAULT '',
   content  TEXT NOT NULL DEFAULT '',
   position INTEGER NOT NULL DEFAULT 0,
+  placement TEXT NOT NULL DEFAULT 'right' CHECK(placement IN ('left','main','right')),
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sidebar_position ON sidebar(position);
+CREATE INDEX IF NOT EXISTS idx_sidebar_placement ON sidebar(placement);
+
+-- Site-wide interface background (whole-page image or video).
+-- Single row id='default'. bg_type in ('none','image','video').
+CREATE TABLE IF NOT EXISTS site_settings (
+  id         TEXT PRIMARY KEY DEFAULT 'default',
+  bg_type    TEXT NOT NULL DEFAULT 'none' CHECK(bg_type IN ('none','image','video')),
+  bg_url     TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);

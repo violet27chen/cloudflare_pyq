@@ -69,6 +69,12 @@ export interface ProfileDTO {
   cover_image_url: string;
 }
 
+/** Site-wide interface background (whole-page image or video). */
+export interface SiteSettingsDTO {
+  bg_type: 'none' | 'image' | 'video';
+  bg_url: string;
+}
+
 export interface ProfileRow {
   id: string;
   display_name: string;

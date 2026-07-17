@@ -12,12 +12,30 @@ import { requireAuthor } from '../middleware/auth';
  */
 export const upload = new Hono<AppType>();
 
-const MAX_SIZE = 8 * 1024 * 1024; // 8 MB
-const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const EXT_MAP: Record<string, string> = {
+// Post images: conservative size + image-only.
+const POST_MAX_SIZE = 8 * 1024 * 1024; // 8 MB
+const POST_ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const POST_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
+};
+
+// Background media: image OR video, larger budget (whole-page bg).
+const BG_MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+const BG_ALLOWED = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'video/mp4',
+  'video/webm',
+]);
+const BG_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
 };
 
 upload.post('/', requireAuthor, async (c) => {
@@ -27,25 +45,36 @@ upload.post('/', requireAuthor, async (c) => {
     return fail(c, 400, ERR.BAD_REQUEST, 'A "file" field is required.');
   }
 
-  if (!ALLOWED_TYPES.has(file.type)) {
+  // `kind` = 'bg' enables video + larger limit; default is post image.
+  const kind = formData.get('kind') === 'bg' ? 'bg' : 'post';
+  const allowed = kind === 'bg' ? BG_ALLOWED : POST_ALLOWED;
+  const extMap = kind === 'bg' ? BG_EXT : POST_EXT;
+  const maxSize = kind === 'bg' ? BG_MAX_SIZE : POST_MAX_SIZE;
+  const prefix = kind === 'bg' ? 'bg' : 'post-images';
+
+  if (!allowed.has(file.type)) {
     return fail(
       c,
       422,
       ERR.UNSUPPORTED_MEDIA,
-      `Unsupported image type: ${file.type}. Use jpeg, png, or webp.`,
+      kind === 'bg'
+        ? `不支持的背景类型: ${file.type}。请使用 jpeg/png/webp 图片或 mp4/webm 视频。`
+        : `Unsupported image type: ${file.type}. Use jpeg, png, or webp.`,
     );
   }
-  if (file.size > MAX_SIZE) {
+  if (file.size > maxSize) {
     return fail(
       c,
       422,
       ERR.PAYLOAD_TOO_LARGE,
-      `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max 8 MB.`,
+      `文件过大 (${(file.size / 1024 / 1024).toFixed(1)} MB)。上限 ${Math.round(
+        maxSize / 1024 / 1024,
+      )} MB。`,
     );
   }
 
-  const ext = EXT_MAP[file.type] ?? 'jpg';
-  const key = `post-images/${crypto.randomUUID()}.${ext}`;
+  const ext = extMap[file.type] ?? 'bin';
+  const key = `${prefix}/${crypto.randomUUID()}.${ext}`;
 
   await c.env.BUCKET.put(key, file.stream(), {
     httpMetadata: { contentType: file.type },

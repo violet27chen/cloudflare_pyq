@@ -9,6 +9,7 @@ import { stats } from './routes/stats';
 import { images } from './routes/images';
 import { profile } from './routes/profile';
 import { sidebar } from './routes/sidebar';
+import { settings } from './routes/settings';
 
 /**
  * Moments API + static frontend - single Cloudflare Worker.
@@ -43,6 +44,7 @@ app.route('/api/upload', upload);
 app.route('/api/stats', stats);
 app.route('/api/profile', profile);
 app.route('/api/sidebar', sidebar);
+app.route('/api/settings', settings);
 app.route('/img', images);
 
 // Serve the built frontend for all non-API, non-image paths.

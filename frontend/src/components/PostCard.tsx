@@ -23,7 +23,7 @@ export function PostCard({ post, visitorId, index, authorName, authorAvatar }: P
         {/* Header: avatar + name + timestamp */}
         <div className="flex items-center gap-3">
           <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-semibold"
             style={{
               backgroundColor: 'var(--color-surface-2)',
               color: 'var(--fg)',
@@ -33,16 +33,23 @@ export function PostCard({ post, visitorId, index, authorName, authorAvatar }: P
             {authorAvatar ? (
               <img src={authorAvatar} alt="" className="h-full w-full object-cover" />
             ) : (
-              (authorName || 'L.').charAt(0)
+              (authorName ? authorName.charAt(0) : '')
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div
-              className="truncate text-[15px] font-medium"
-              style={{ color: 'var(--fg)' }}
-            >
-              {authorName || 'L.'}
-            </div>
+            {authorName ? (
+              <div
+                className="truncate text-[15px] font-medium"
+                style={{ color: 'var(--fg)' }}
+              >
+                {authorName}
+              </div>
+            ) : (
+              <div
+                className="h-4 w-24 rounded"
+                style={{ backgroundColor: 'var(--color-surface-2)' }}
+              />
+            )}
           </div>
           <time
             dateTime={post.created_at}

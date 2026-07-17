@@ -3,20 +3,27 @@
 import { useState, useEffect } from 'react';
 import { X } from '@phosphor-icons/react';
 import { getProfile, type ProfileDTO } from '../utils/api';
-import { AUTHOR_NAME } from '../utils/config';
 
 /**
- * 公开个人主页头部 — 全宽封面 + 右下角头像/昵称叠加。
+ * 公开个人主页头部 — 全宽封面 + 左下角头像/昵称叠加。
  *
- * 参考：GitHub profile / 类社交平台风格——
- *   封面全宽平铺，头像(小)+名字在封面右下角叠在封面上，
+ * 参考：微信朋友圈资料页风格——
+ *   封面全宽平铺，头像(小)+名字在封面左下角叠在封面上，
  *   无独立信息带，下方直接接动态内容。
+ *
+ * profile 由 Feed 统一拉取后传入（单一数据源），避免各自 fetch
+ * 导致加载中出现占位名 "L." 的闪烁。
  */
-export function ProfileHeader() {
-  const [profile, setProfile] = useState<ProfileDTO | null>(null);
+export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO | null }) {
+  const [profile, setProfile] = useState<ProfileDTO | null>(propProfile ?? null);
   const [showCover, setShowCover] = useState(false);
 
   useEffect(() => {
+    // 若由父级传入 profile，则以其为准；否则自行拉取一次。
+    if (propProfile !== undefined) {
+      setProfile(propProfile);
+      return;
+    }
     let alive = true;
     getProfile()
       .then((p) => {
@@ -26,7 +33,7 @@ export function ProfileHeader() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [propProfile]);
 
   // ESC 关闭大图
   useEffect(() => {
@@ -38,10 +45,13 @@ export function ProfileHeader() {
     return () => window.removeEventListener('keydown', onKey);
   }, [showCover]);
 
-  const name = profile?.display_name || AUTHOR_NAME;
-  const avatar = profile?.avatar_url;
-  const cover = profile?.cover_image_url;
-  const bio = profile?.bio;
+  // 加载中（profile 为 null）时不渲染任何占位名，避免闪现 "L."
+  if (!profile) return null;
+
+  const name = profile.display_name ?? '';
+  const avatar = profile.avatar_url;
+  const cover = profile.cover_image_url;
+  const bio = profile.bio;
 
   const openCover = () => {
     if (cover) setShowCover(true);
@@ -109,7 +119,7 @@ export function ProfileHeader() {
                 {avatar ? (
                   <img src={avatar} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  name.charAt(0)
+                  (name ? name.charAt(0) : '')
                 )}
               </div>
               <span
@@ -128,7 +138,7 @@ export function ProfileHeader() {
         </>
       ) : (
         <>
-          /* 无背景图：仅显示一行头像 + 名字 */
+          {/* 无背景图：仅显示一行头像 + 名字 */}
           <div className="flex items-center justify-start gap-2.5 px-4 py-3">
           <div
             className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 text-sm font-bold sm:h-11 sm:w-11"
@@ -142,7 +152,7 @@ export function ProfileHeader() {
             {avatar ? (
               <img src={avatar} alt="" className="h-full w-full object-cover" />
             ) : (
-              name.charAt(0)
+              (name ? name.charAt(0) : '')
             )}
           </div>
           <span

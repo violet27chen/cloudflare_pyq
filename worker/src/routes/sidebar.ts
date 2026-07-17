@@ -19,23 +19,28 @@ interface SidebarItemDTO {
   title: string;
   content: string;
   position: number;
+  placement: 'left' | 'main' | 'right';
 }
 
 const VALID_TYPES = new Set(['image', 'text', 'markdown']);
+const VALID_PLACEMENTS = new Set(['left', 'main', 'right']);
 
 /**
- * GET /api/sidebar — public, ordered by position.
+ * GET /api/sidebar — public, ordered by placement then position.
  */
 sidebar.get('/', async (c) => {
   const rows = await c.env.DB
-    .prepare(`SELECT id, type, title, content, position FROM sidebar ORDER BY position ASC, created_at ASC`)
+    .prepare(
+      `SELECT id, type, title, content, position, placement FROM sidebar
+       ORDER BY placement ASC, position ASC, created_at ASC`,
+    )
     .all<SidebarItemDTO>();
   return ok(c, rows.results ?? []);
 });
 
 /**
  * POST /api/sidebar — create [author]
- * Body: { type, title, content, position? }
+ * Body: { type, title, content, position?, placement? }
  */
 sidebar.post('/', requireAuthor, async (c) => {
   let body: unknown;
@@ -50,6 +55,10 @@ sidebar.post('/', requireAuthor, async (c) => {
   const title = typeof b.title === 'string' ? b.title.trim() : '';
   const content = typeof b.content === 'string' ? b.content : '';
   const position = typeof b.position === 'number' ? b.position : 0;
+  const placement =
+    typeof b.placement === 'string' && VALID_PLACEMENTS.has(b.placement)
+      ? (b.placement as 'left' | 'main' | 'right')
+      : 'right';
 
   if (!content) {
     return fail(c, 422, ERR.VALIDATION, '内容不能为空。');
@@ -59,11 +68,20 @@ sidebar.post('/', requireAuthor, async (c) => {
   const now = new Date().toISOString();
 
   await c.env.DB
-    .prepare(`INSERT INTO sidebar (id, type, title, content, position, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
-    .bind(id, type, title, content, position, now)
+    .prepare(
+      `INSERT INTO sidebar (id, type, title, content, position, placement, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(id, type, title, content, position, placement, now)
     .run();
 
-  return ok(c, { id, type: type as SidebarItemDTO['type'], title, content, position });
+  return ok(c, {
+    id,
+    type: type as SidebarItemDTO['type'],
+    title,
+    content,
+    position,
+    placement,
+  });
 });
 
 /**

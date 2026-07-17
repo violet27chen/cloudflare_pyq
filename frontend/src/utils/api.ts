@@ -22,12 +22,19 @@ export interface ProfileDTO {
   cover_image_url: string;
 }
 
+/** Site-wide interface background. */
+export interface SiteSettingsDTO {
+  bg_type: 'none' | 'image' | 'video';
+  bg_url: string;
+}
+
 export interface SidebarItemDTO {
   id: string;
   type: 'image' | 'text' | 'markdown';
   title: string;
   content: string;
   position: number;
+  placement: 'left' | 'main' | 'right';
 }
 
 interface ApiResponse<T> {
@@ -174,14 +181,36 @@ export function updateProfile(
   });
 }
 
-/** POST /api/upload (author only, multipart) */
-export async function uploadImage(
+/* ---------- Site settings (interface background) ---------- */
+
+/** GET /api/settings (public) */
+export function getSettings() {
+  return apiFetch<SiteSettingsDTO>('/api/settings');
+}
+
+/** PUT /api/settings (author only) */
+export function updateSettings(
+  token: string,
+  data: { bg_type: 'none' | 'image' | 'video'; bg_url: string },
+) {
+  return apiFetch<SiteSettingsDTO>('/api/settings', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+/** POST /api/upload (author only, multipart)
+ *  kind: 'post' (image, default) | 'bg' (image or video, larger limit) */
+export async function uploadMedia(
   token: string,
   file: File,
+  kind?: 'post' | 'bg',
 ): Promise<{ url: string }> {
   const url = `${API_BASE}/api/upload`;
   const formData = new FormData();
   formData.append('file', file);
+  if (kind) formData.append('kind', kind);
   const res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -194,6 +223,14 @@ export async function uploadImage(
   return body.data;
 }
 
+/** Post image upload (alias). */
+export function uploadImage(
+  token: string,
+  file: File,
+): Promise<{ url: string }> {
+  return uploadMedia(token, file, 'post');
+}
+
 /* ---------- Sidebar (author only) ---------- */
 
 /** GET /api/sidebar (public) */
@@ -204,7 +241,13 @@ export function fetchSidebar() {
 /** POST /api/sidebar (author only) */
 export function createSidebarItem(
   token: string,
-  data: { type: 'image' | 'text' | 'markdown'; title: string; content: string; position?: number },
+  data: {
+    type: 'image' | 'text' | 'markdown';
+    title: string;
+    content: string;
+    position?: number;
+    placement?: 'left' | 'main' | 'right';
+  },
 ) {
   return apiFetch<SidebarItemDTO>('/api/sidebar', {
     method: 'POST',

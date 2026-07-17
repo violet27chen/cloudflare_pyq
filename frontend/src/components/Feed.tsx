@@ -3,11 +3,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { PostCard } from './PostCard';
 import { ProfileHeader } from './ProfileHeader';
+import { BackgroundMedia } from './BackgroundMedia';
 import { NoteBlank } from '@phosphor-icons/react';
 import { FeedSkeleton } from './PostSkeleton';
 import { useVisitorId } from '../hooks/useVisitorId';
-import { fetchPosts, getProfile, type PostDTO, type ProfileDTO, type SidebarItemDTO } from '../utils/api';
-import { AUTHOR_NAME } from '../utils/config';
+import {
+  fetchPosts,
+  getProfile,
+  getSettings,
+  type PostDTO,
+  type ProfileDTO,
+  type SidebarItemDTO,
+  type SiteSettingsDTO,
+} from '../utils/api';
 
 const PAGE_SIZE = 10;
 
@@ -16,6 +24,7 @@ export function Feed() {
   const [posts, setPosts] = useState<PostDTO[]>([]);
   const [profile, setProfile] = useState<ProfileDTO | null>(null);
   const [sidebarItems, setSidebarItems] = useState<SidebarItemDTO[]>([]);
+  const [settings, setSettings] = useState<SiteSettingsDTO | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -38,6 +47,13 @@ export function Feed() {
       .then((body) => {
         if (body.ok) setSidebarItems(body.data ?? []);
       })
+      .catch(() => {});
+  }, []);
+
+  // Load site settings (interface background)
+  useEffect(() => {
+    getSettings()
+      .then(setSettings)
       .catch(() => {});
   }, []);
 
@@ -97,30 +113,52 @@ export function Feed() {
     };
   }, [loadMore, hasMore]);
 
-  // Author info for post cards (synced from profile)
-  const authorName = profile?.display_name || AUTHOR_NAME;
-  const authorAvatar = profile?.avatar_url || undefined;
+  // Author info for post cards (synced from profile).
+  // 注意：加载完成前保持空字符串，避免闪现占位名 "L."。
+  const authorName = profile?.display_name ?? '';
+  const authorAvatar = profile?.avatar_url ?? undefined;
+
+  // Split sidebar items by column placement.
+  const leftItems = sidebarItems.filter((i) => i.placement === 'left');
+  const rightItems = sidebarItems.filter((i) => i.placement === 'right');
+  const mainItems = sidebarItems.filter((i) => i.placement === 'main');
+
+  // Full-page background layer (image or video).
+  const bgLayer =
+    settings && settings.bg_type !== 'none' && settings.bg_url ? (
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <BackgroundMedia settings={settings} />
+      </div>
+    ) : null;
 
   // --- Render states ---
 
   if (loading) {
-    return <FeedSkeleton count={3} />;
+    return (
+      <>
+        {bgLayer}
+        <FeedSkeleton count={3} />
+      </>
+    );
   }
 
   if (error) {
     return (
-      <div className="m-card p-8 text-center">
-        <p className="text-[15px]" style={{ color: 'var(--fg-muted)' }}>
-          {error}
-        </p>
-        <button
-          type="button"
-          onClick={loadInitial}
-          className="m-btn-primary mt-4 px-5 py-2 text-sm"
-        >
-          重试
-        </button>
-      </div>
+      <>
+        {bgLayer}
+        <div className="m-card p-8 text-center">
+          <p className="text-[15px]" style={{ color: 'var(--fg-muted)' }}>
+            {error}
+          </p>
+          <button
+            type="button"
+            onClick={loadInitial}
+            className="m-btn-primary mt-4 px-5 py-2 text-sm"
+          >
+            重试
+          </button>
+        </div>
+      </>
     );
   }
 
@@ -189,24 +227,41 @@ export function Feed() {
     );
 
   return (
-    <div className="flex gap-6 lg:flex-row">
-      {/* 主内容区 — 动态列表 */}
-      <div className="min-w-0 flex-1 space-y-4">
-        {/* 个人主页头部（朋友圈风格）— 无论有无动态都先显示封面区域 */}
-        {profile && <ProfileHeader />}
+    <>
+      {bgLayer}
+      <div className="flex flex-col gap-6 lg:flex-row">
+        {/* 左侧列 — 仅桌面端显示 */}
+        {leftItems.length > 0 && (
+          <aside className="hidden w-72 shrink-0 space-y-4 lg:block">
+            {leftItems.map((item) => (
+              <SidebarCard key={item.id} item={item} />
+            ))}
+          </aside>
+        )}
 
-        {feedBody}
-      </div>
+        {/* 主内容区 — 中间列：封面 + 主区域内容 + 动态列表 */}
+        <div className="min-w-0 flex-1 space-y-4">
+          {/* 个人主页头部（朋友圈风格）— 无论有无动态都先显示封面区域 */}
+          {profile && <ProfileHeader profile={profile} />}
 
-      {/* 侧边栏 — 仅桌面端显示 */}
-      {sidebarItems.length > 0 && (
-        <aside className="hidden w-80 shrink-0 space-y-4 lg:block">
-          {sidebarItems.map((item) => (
+          {/* 中间主区域内容（admin 可在后台编辑） */}
+          {mainItems.map((item) => (
             <SidebarCard key={item.id} item={item} />
           ))}
-        </aside>
-      )}
-    </div>
+
+          {feedBody}
+        </div>
+
+        {/* 右侧列 — 仅桌面端显示 */}
+        {rightItems.length > 0 && (
+          <aside className="hidden w-72 shrink-0 space-y-4 lg:block">
+            {rightItems.map((item) => (
+              <SidebarCard key={item.id} item={item} />
+            ))}
+          </aside>
+        )}
+      </div>
+    </>
   );
 }
 

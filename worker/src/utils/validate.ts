@@ -123,6 +123,36 @@ export function assertProfileInput(body: unknown): ProfileInput {
   };
 }
 
+/* ---------------- site settings (interface background) ---------------- */
+
+const SETTINGS_BG_RE =
+  /^(?:https?:\/\/[^\s"'<>]{1,1024}|\/img\/[^\s"'<>]{1,1024})$/i;
+
+export interface SettingsInput {
+  bg_type: 'none' | 'image' | 'video';
+  bg_url: string;
+}
+
+/** Validate a settings body for PUT /api/settings. Returns normalized. */
+export function assertSettingsInput(body: unknown): SettingsInput {
+  if (!body || typeof body !== 'object') {
+    throw new ValidationError('Request body must be an object.');
+  }
+  const b = body as Record<string, unknown>;
+
+  const bgType =
+    b.bg_type === 'image' || b.bg_type === 'video' ? b.bg_type : 'none';
+  const bgUrl = typeof b.bg_url === 'string' ? b.bg_url.trim() : '';
+
+  if (bgType !== 'none' && !SETTINGS_BG_RE.test(bgUrl)) {
+    throw new ValidationError(
+      '背景地址无效（需为图片/视频 URL，或以 /img/ 开头）。',
+    );
+  }
+
+  return { bg_type: bgType, bg_url: bgType === 'none' ? '' : bgUrl };
+}
+
 /** Parse a non-negative int query param with bounds. */
 export function parseIntQuery(
   raw: string | undefined,

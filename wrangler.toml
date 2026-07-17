@@ -21,6 +21,9 @@ not_found_handling = "single-page-application"
 binding = "DB"
 database_name = "moments"
 database_id = "8ea9cdef-6d06-436e-b45a-599cc928b5ab"
+# D1 migrations (idempotent). Apply with:
+#   wrangler d1 migrations apply moments --remote
+migrations_dir = "./worker/migrations"
 
 # R2 bucket for post images (served same-origin via /img).
 [[r2_buckets]]

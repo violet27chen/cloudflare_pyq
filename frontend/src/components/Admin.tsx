@@ -8,9 +8,12 @@ import {
   editPost,
   deletePost,
   uploadImage,
+  uploadMedia,
   fetchPosts,
   getProfile,
   updateProfile,
+  getSettings,
+  updateSettings,
   fetchSidebar,
   createSidebarItem,
   deleteSidebarItem,
@@ -195,13 +198,14 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
 
   // Sidebar state
   const [sidebarItems, setSidebarItems] = useState<SidebarItemDTO[]>([]);
-  const [sidebarFormOpen, setSidebarFormOpen] = useState(false);
-  const [sidebarDraft, setSidebarDraft] = useState({
-    type: 'image' as 'image' | 'text' | 'markdown',
-    title: '',
-    content: '',
-  });
   const [sidebarSaving, setSidebarSaving] = useState(false);
+
+  // Interface background state (whole-page image or video)
+  const [bgDraft, setBgDraft] = useState<{
+    type: 'none' | 'image' | 'video';
+    url: string;
+  }>({ type: 'none', url: '' });
+  const [uploadingBg, setUploadingBg] = useState(false);
 
   // Load data
   const loadData = useCallback(async () => {
@@ -209,14 +213,17 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     try {
       const profilePromise = getProfile().catch(() => null);
       const sidebarPromise = fetchSidebar().catch(() => []);
-      const [postsRes, statsRes, profileRes, sidebarRes] = await Promise.all([
-        fetchPosts({ limit: 50, visitorId: null }),
-        fetch(`${import.meta.env.PUBLIC_API_BASE ?? ''}/api/stats`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }).then((r) => r.json()),
-        profilePromise,
-        sidebarPromise,
-      ]);
+      const settingsPromise = getSettings().catch(() => null);
+      const [postsRes, statsRes, profileRes, sidebarRes, settingsRes] =
+        await Promise.all([
+          fetchPosts({ limit: 50, visitorId: null }),
+          fetch(`${import.meta.env.PUBLIC_API_BASE ?? ''}/api/stats`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }).then((r) => r.json()),
+          profilePromise,
+          sidebarPromise,
+          settingsPromise,
+        ]);
       setPosts(postsRes.items);
       if (statsRes.ok) setStats(statsRes.data);
       if (profileRes) {
@@ -230,6 +237,9 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
       }
       if (Array.isArray(sidebarRes)) {
         setSidebarItems(sidebarRes);
+      }
+      if (settingsRes) {
+        setBgDraft({ type: settingsRes.bg_type, url: settingsRes.bg_url });
       }
     } catch {
       // Silently fail; user can refresh.
@@ -300,6 +310,38 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     },
     [token, modalImages.length],
   );
+
+  /* ---------- Interface background upload/save ---------- */
+
+  const handleBgUpload = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setUploadingBg(true);
+      try {
+        const { url } = await uploadMedia(token, file, 'bg');
+        setBgDraft((d) => ({ ...d, url }));
+      } catch (err) {
+        alert(err instanceof Error ? err.message : '背景上传失败');
+      } finally {
+        setUploadingBg(false);
+        e.target.value = '';
+      }
+    },
+    [token],
+  );
+
+  const handleSaveBg = useCallback(async () => {
+    try {
+      const updated = await updateSettings(token, {
+        bg_type: bgDraft.type,
+        bg_url: bgDraft.type === 'none' ? '' : bgDraft.url,
+      });
+      setBgDraft({ type: updated.bg_type, url: updated.bg_url });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '保存失败');
+    }
+  }, [token, bgDraft]);
 
   /* ---------- Profile save ---------- */
   const handleSaveProfile = useCallback(async () => {
@@ -373,27 +415,37 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     }
   }, [token, deleteConfirm, loadData]);
 
-  /* ---------- Sidebar CRUD ---------- */
+  /* ---------- Sidebar CRUD (three columns) ---------- */
 
-  const handleAddSidebar = useCallback(async () => {
-    if (!sidebarDraft.content.trim()) return;
-    setSidebarSaving(true);
-    try {
-      const item = await createSidebarItem(token, {
-        type: sidebarDraft.type,
-        title: sidebarDraft.title,
-        content: sidebarDraft.content,
-        position: sidebarItems.length,
-      });
-      setSidebarItems((prev) => [...prev, item]);
-      setSidebarDraft({ type: 'image', title: '', content: '' });
-      setSidebarFormOpen(false);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : '添加失败');
-    } finally {
-      setSidebarSaving(false);
-    }
-  }, [token, sidebarDraft, sidebarItems.length]);
+  const handleAddSidebar = useCallback(
+    async (data: {
+      type: 'image' | 'text' | 'markdown';
+      title: string;
+      content: string;
+      placement: 'left' | 'main' | 'right';
+    }) => {
+      if (!data.content.trim()) return;
+      setSidebarSaving(true);
+      try {
+        const sameColCount = sidebarItems.filter(
+          (i) => i.placement === data.placement,
+        ).length;
+        const item = await createSidebarItem(token, {
+          type: data.type,
+          title: data.title,
+          content: data.content,
+          position: sameColCount,
+          placement: data.placement,
+        });
+        setSidebarItems((prev) => [...prev, item]);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : '添加失败');
+      } finally {
+        setSidebarSaving(false);
+      }
+    },
+    [token, sidebarItems],
+  );
 
   const handleDeleteSidebar = useCallback(
     async (id: string) => {
@@ -672,6 +724,131 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
         </div>
       )}
 
+      {/* ====== 界面背景（整站图片/视频） ====== */}
+      <div className="m-card mb-6 space-y-4 p-5">
+        <h2
+          className="text-sm font-semibold uppercase tracking-wider"
+          style={{ color: 'var(--fg-muted)' }}
+        >
+          界面背景
+        </h2>
+
+        {/* 类型选择 */}
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ['none', '无'],
+              ['image', '图片'],
+              ['video', '视频'],
+            ] as const
+          ).map(([v, label]) => {
+            const active = bgDraft.type === v;
+            return (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setBgDraft((d) => ({ ...d, type: v }))}
+                className="rounded-lg border px-4 py-2 text-sm transition-colors"
+                style={{
+                  borderColor: active ? 'var(--color-accent)' : 'var(--line)',
+                  backgroundColor: active
+                    ? 'var(--color-accent-soft)'
+                    : 'transparent',
+                  color: active ? 'var(--color-accent)' : 'var(--fg-muted)',
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {bgDraft.type !== 'none' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-4">
+              <div
+                className="flex h-16 w-24 overflow-hidden rounded-lg border bg-cover bg-center"
+                style={{
+                  borderColor: 'var(--line)',
+                  backgroundImage: bgDraft.url
+                    ? `url(${bgDraft.url})`
+                    : undefined,
+                  backgroundColor: 'var(--color-surface-2)',
+                }}
+              >
+                {!bgDraft.url && (
+                  <div
+                    className="flex h-full w-full items-center justify-center text-xs"
+                    style={{ color: 'var(--fg-muted)' }}
+                  >
+                    无背景
+                  </div>
+                )}
+              </div>
+              <div className="flex-1">
+                <label
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 text-sm transition-colors ${
+                    uploadingBg ? 'opacity-50' : ''
+                  }`}
+                  style={{
+                    borderColor: 'var(--line)',
+                    backgroundColor: 'var(--color-surface-2)',
+                    color: 'var(--fg-soft)',
+                  }}
+                >
+                  <input
+                    type="file"
+                    accept={
+                      bgDraft.type === 'video'
+                        ? 'video/mp4,video/webm'
+                        : 'image/jpeg,image/png,image/webp'
+                    }
+                    onChange={handleBgUpload}
+                    className="hidden"
+                    disabled={uploadingBg}
+                  />
+                  {uploadingBg
+                    ? '上传中...'
+                    : `上传${bgDraft.type === 'video' ? '视频' : '图片'}`}
+                </label>
+                {bgDraft.url && (
+                  <button
+                    type="button"
+                    onClick={() => setBgDraft((d) => ({ ...d, url: '' }))}
+                    className="ml-2 text-xs transition-colors"
+                    style={{ color: 'var(--color-accent)' }}
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+            </div>
+            <input
+              type="url"
+              value={bgDraft.url}
+              placeholder="或输入背景地址（图片/视频 URL，或以 /img/ 开头）"
+              onChange={(e) =>
+                setBgDraft((d) => ({ ...d, url: e.target.value }))
+              }
+              className="w-full rounded-lg border px-3 py-1.5 text-xs outline-none transition-colors focus:border-[var(--color-accent)]"
+              style={{
+                backgroundColor: 'var(--color-surface-2)',
+                borderColor: 'var(--line)',
+                color: 'var(--fg-muted)',
+              }}
+            />
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleSaveBg}
+          className="m-btn-primary mt-2 px-6 py-2.5 text-sm"
+        >
+          保存背景
+        </button>
+      </div>
+
       {/* ====== 发帖按钮 ====== */}
       <div className="mb-6 flex justify-end">
         <button
@@ -740,172 +917,32 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
         )}
       </div>
 
-      {/* ====== 侧边栏管理 ====== */}
-      <div className="mt-8 m-card space-y-4 p-5">
-        <div className="flex items-center justify-between">
-          <h2
-            className="text-sm font-semibold uppercase tracking-wider"
-            style={{ color: 'var(--fg-muted)' }}
-          >
-            侧边栏管理
-          </h2>
-          <button
-            type="button"
-            onClick={() => setSidebarFormOpen(!sidebarFormOpen)}
-            className="rounded-lg px-3 py-1.5 text-sm transition-colors"
-            style={{
-              color: 'var(--color-accent)',
-              backgroundColor: 'var(--color-accent-soft)',
-            }}
-          >
-            {sidebarFormOpen ? '取消' : '+ 添加内容'}
-          </button>
-        </div>
-
-        {sidebarFormOpen && (
-          <motion.div
-            className="space-y-3 rounded-md border p-4"
-            initial={reduce ? false : { opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            style={{
-              borderColor: 'var(--line)',
-              backgroundColor: 'var(--color-surface-2)',
-            }}
-          >
-            <div className="grid grid-cols-3 gap-2">
-              {(['image', 'text', 'markdown'] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setSidebarDraft((d) => ({ ...d, type: t }))}
-                  className="rounded-lg border py-2 text-xs font-medium transition-colors"
-                  style={{
-                    borderColor:
-                      sidebarDraft.type === t ? 'var(--color-accent)' : 'var(--line)',
-                    backgroundColor:
-                      sidebarDraft.type === t ? 'var(--color-accent-soft)' : 'transparent',
-                    color:
-                      sidebarDraft.type === t ? 'var(--color-accent)' : 'var(--fg-muted)',
-                  }}
-                >
-                  {t === 'image' ? '图片' : t === 'text' ? '文本' : 'Markdown'}
-                </button>
-              ))}
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--fg-muted)' }}>
-                标题（可选）
-              </label>
-              <input
-                type="text"
-                value={sidebarDraft.title}
-                onChange={(e) => setSidebarDraft((d) => ({ ...d, title: e.target.value }))}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
-                style={{
-                  backgroundColor: 'var(--card)',
-                  borderColor: 'var(--line)',
-                  color: 'var(--fg)',
-                }}
-                placeholder="标题..."
-                maxLength={100}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--fg-muted)' }}>
-                内容
-                {sidebarDraft.type === 'image' ? '（图片 URL）' : ''}
-              </label>
-              {sidebarDraft.type === 'image' ? (
-                <input
-                  type="url"
-                  value={sidebarDraft.content}
-                  onChange={(e) => setSidebarDraft((d) => ({ ...d, content: e.target.value }))}
-                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
-                  style={{
-                    backgroundColor: 'var(--card)',
-                    borderColor: 'var(--line)',
-                    color: 'var(--fg)',
-                  }}
-                  placeholder="https://... 图片地址"
-                />
-              ) : (
-                <textarea
-                  value={sidebarDraft.content}
-                  onChange={(e) => setSidebarDraft((d) => ({ ...d, content: e.target.value }))}
-                  rows={sidebarDraft.type === 'markdown' ? 6 : 3}
-                  className="w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
-                  style={{
-                    backgroundColor: 'var(--card)',
-                    borderColor: 'var(--line)',
-                    color: 'var(--fg)',
-                  }}
-                  placeholder={
-                    sidebarDraft.type === 'markdown'
-                      ? '支持 **Markdown** 语法...'
-                      : '输入文本内容...'
-                  }
-                />
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={handleAddSidebar}
-              disabled={sidebarSaving || !sidebarDraft.content.trim()}
-              className="m-btn-primary w-full py-2 text-sm disabled:opacity-50"
-            >
-              {sidebarSaving ? '添加中...' : '添加到侧边栏'}
-            </button>
-          </motion.div>
-        )}
-
-        {/* Existing sidebar items list */}
-        {sidebarItems.length > 0 ? (
-          <div className="space-y-2">
-            {sidebarItems.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-3 rounded-lg border p-3"
-                style={{ borderColor: 'var(--line)' }}
-              >
-                <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold"
-                  style={{
-                    backgroundColor: 'var(--color-surface-2)',
-                    color: 'var(--fg-muted)',
-                  }}
-                >
-                  {item.type === 'image' ? '图' : item.type === 'markdown' ? 'MD' : '文'}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p
-                    className="truncate text-sm font-medium"
-                    style={{ color: 'var(--fg)' }}
-                  >
-                    {item.title || item.content.slice(0, 40)}
-                  </p>
-                  <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>
-                    {item.type} · 位置 #{item.position}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteSidebar(item.id)}
-                  className="shrink-0 rounded-md px-2 py-1 text-xs transition-colors hover:bg-[var(--color-accent-soft)]"
-                  style={{ color: 'var(--color-accent)' }}
-                >
-                  删除
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="py-4 text-center text-sm" style={{ color: 'var(--fg-muted)' }}>
-            侧边栏还没有内容，点击上方按钮添加~
-          </p>
-        )}
+      {/* ====== 三列内容管理（左 / 中 / 右） ====== */}
+      <div className="mt-8 grid gap-6">
+        <ColumnManager
+          placement="left"
+          label="左侧列"
+          items={sidebarItems.filter((i) => i.placement === 'left')}
+          saving={sidebarSaving}
+          onAdd={handleAddSidebar}
+          onDelete={handleDeleteSidebar}
+        />
+        <ColumnManager
+          placement="main"
+          label="中间主区域"
+          items={sidebarItems.filter((i) => i.placement === 'main')}
+          saving={sidebarSaving}
+          onAdd={handleAddSidebar}
+          onDelete={handleDeleteSidebar}
+        />
+        <ColumnManager
+          placement="right"
+          label="右侧列"
+          items={sidebarItems.filter((i) => i.placement === 'right')}
+          saving={sidebarSaving}
+          onAdd={handleAddSidebar}
+          onDelete={handleDeleteSidebar}
+        />
       </div>
 
       {/* ==================== MODAL: 编辑/新建帖子 ==================== */}
@@ -1091,6 +1128,215 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
           </>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/* ========== Column content manager (left / main / right) ========== */
+
+function ColumnManager({
+  placement,
+  label,
+  items,
+  saving,
+  onAdd,
+  onDelete,
+}: {
+  placement: 'left' | 'main' | 'right';
+  label: string;
+  items: SidebarItemDTO[];
+  saving: boolean;
+  onAdd: (data: {
+    type: 'image' | 'text' | 'markdown';
+    title: string;
+    content: string;
+    placement: 'left' | 'main' | 'right';
+  }) => void;
+  onDelete: (id: string) => void;
+}) {
+  const reduce = useReducedMotion();
+  const [open, setOpen] = useState(false);
+  const [type, setType] = useState<'image' | 'text' | 'markdown'>('image');
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+
+  const handleAdd = async () => {
+    if (!content.trim()) return;
+    await onAdd({ type, title, content, placement });
+    setType('image');
+    setTitle('');
+    setContent('');
+    setOpen(false);
+  };
+
+  return (
+    <div className="m-card space-y-4 p-5">
+      <div className="flex items-center justify-between">
+        <h2
+          className="text-sm font-semibold uppercase tracking-wider"
+          style={{ color: 'var(--fg-muted)' }}
+        >
+          {label}
+        </h2>
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="rounded-lg px-3 py-1.5 text-sm transition-colors"
+          style={{
+            color: 'var(--color-accent)',
+            backgroundColor: 'var(--color-accent-soft)',
+          }}
+        >
+          {open ? '取消' : '+ 添加内容'}
+        </button>
+      </div>
+
+      {open && (
+        <motion.div
+          className="space-y-3 rounded-md border p-4"
+          initial={reduce ? false : { opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          style={{
+            borderColor: 'var(--line)',
+            backgroundColor: 'var(--color-surface-2)',
+          }}
+        >
+          <div className="grid grid-cols-3 gap-2">
+            {(['image', 'text', 'markdown'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setType(t)}
+                className="rounded-lg border py-2 text-xs font-medium transition-colors"
+                style={{
+                  borderColor: type === t ? 'var(--color-accent)' : 'var(--line)',
+                  backgroundColor:
+                    type === t ? 'var(--color-accent-soft)' : 'transparent',
+                  color: type === t ? 'var(--color-accent)' : 'var(--fg-muted)',
+                }}
+              >
+                {t === 'image' ? '图片' : t === 'text' ? '文本' : 'Markdown'}
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <label
+              className="mb-1 block text-xs font-medium"
+              style={{ color: 'var(--fg-muted)' }}
+            >
+              标题（可选）
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
+              style={{
+                backgroundColor: 'var(--card)',
+                borderColor: 'var(--line)',
+                color: 'var(--fg)',
+              }}
+              placeholder="标题..."
+              maxLength={100}
+            />
+          </div>
+
+          <div>
+            <label
+              className="mb-1 block text-xs font-medium"
+              style={{ color: 'var(--fg-muted)' }}
+            >
+              内容{type === 'image' ? '（图片 URL）' : ''}
+            </label>
+            {type === 'image' ? (
+              <input
+                type="url"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
+                style={{
+                  backgroundColor: 'var(--card)',
+                  borderColor: 'var(--line)',
+                  color: 'var(--fg)',
+                }}
+                placeholder="https://... 图片地址"
+              />
+            ) : (
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows={type === 'markdown' ? 6 : 3}
+                className="w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-accent)]"
+                style={{
+                  backgroundColor: 'var(--card)',
+                  borderColor: 'var(--line)',
+                  color: 'var(--fg)',
+                }}
+                placeholder={
+                  type === 'markdown'
+                    ? '支持 **Markdown** 语法...'
+                    : '输入文本内容...'
+                }
+              />
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={saving || !content.trim()}
+            className="m-btn-primary w-full py-2 text-sm disabled:opacity-50"
+          >
+            {saving ? '添加中...' : `添加到${label}`}
+          </button>
+        </motion.div>
+      )}
+
+      {items.length > 0 ? (
+        <div className="space-y-2">
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center gap-3 rounded-lg border p-3"
+              style={{ borderColor: 'var(--line)' }}
+            >
+              <span
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold"
+                style={{
+                  backgroundColor: 'var(--color-surface-2)',
+                  color: 'var(--fg-muted)',
+                }}
+              >
+                {item.type === 'image' ? '图' : item.type === 'markdown' ? 'MD' : '文'}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p
+                  className="truncate text-sm font-medium"
+                  style={{ color: 'var(--fg)' }}
+                >
+                  {item.title || item.content.slice(0, 40)}
+                </p>
+                <span className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+                  {item.type} · 位置 #{item.position}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onDelete(item.id)}
+                className="shrink-0 rounded-md px-2 py-1 text-xs transition-colors hover:bg-[var(--color-accent-soft)]"
+                style={{ color: 'var(--color-accent)' }}
+              >
+                删除
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="py-4 text-center text-sm" style={{ color: 'var(--fg-muted)' }}>
+          还没有内容，点击上方按钮添加~
+        </p>
+      )}
     </div>
   );
 }
