@@ -25,7 +25,7 @@ pnpm dev:worker
 
 ## Deploy
 
-The **Deploy to Cloudflare** button at the top starts Cloudflare's deploy flow. Because this is a monorepo (the Worker lives in `worker/`), a clean deploy is usually done from the CLI:
+The **Deploy to Cloudflare** button at the top starts Cloudflare's deploy flow. `wrangler.toml` lives at the **repo root**, so the button works directly. For a clean manual deploy:
 
 ```bash
 # 1. Clone & install
@@ -33,7 +33,7 @@ git clone https://github.com/violet27chen/cloudflare_pyq
 cd cloudflare_pyq && pnpm install
 
 # 2. Create Cloudflare resources
-wrangler d1 create moments              # copy the returned database_id into worker/wrangler.toml
+wrangler d1 create moments              # copy the returned database_id into wrangler.toml
 wrangler r2 bucket create moments-images
 
 # 3. Set secrets (never commit these)
@@ -49,7 +49,7 @@ wrangler d1 execute moments --remote --file=./db/seed.sql
 pnpm deploy
 ```
 
-Open `https://<your-subdomain>.workers.dev` — the feed is at `/`, the author panel at `/admin` (log in with `ADMIN_PASSWORD`).
+Open `https://<your-subdomain>.workers.dev` — the feed is at `/`, the author panel at `/admin` (log in with `ADMIN_PASSWORD`). A custom domain (`moments.qiyuan.icu`) is already wired via `[[routes]]` in `wrangler.toml`; to use your own, change the `pattern` and re-deploy (the zone must be on Cloudflare).
 
 ## Project structure
 
@@ -57,7 +57,7 @@ Open `https://<your-subdomain>.workers.dev` — the feed is at `/`, the author p
 frontend/          Astro + React + Tailwind v4 (static build -> worker serves it)
   src/
     pages/         index.astro (feed), admin.astro (author panel)
-    components/    Feed, PostCard, LikeButton, ImageGrid, Admin, PostSkeleton
+    components/    Feed, PostCard, LikeButton, ImageGrid, Admin, ProfileHeader, PostSkeleton
     layouts/       BaseLayout.astro
     hooks/         useVisitorId
     utils/         api, config, time
@@ -66,7 +66,7 @@ frontend/          Astro + React + Tailwind v4 (static build -> worker serves it
 worker/            Cloudflare Worker (Hono) — API + serves frontend via Static Assets
   src/
     index.ts       app entry, middleware, route mounts
-    routes/        posts, auth, upload, stats, images
+    routes/        posts, auth, upload, stats, images, profile
     middleware/    cors, auth (JWT), rateLimit, error
     utils/         jwt, validate, response
   db/
