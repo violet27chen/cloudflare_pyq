@@ -1,20 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { X } from '@phosphor-icons/react';
 import { getProfile, type ProfileDTO } from '../utils/api';
 import { AUTHOR_NAME } from '../utils/config';
 
 /**
- * 公共个人主页头部 — 微信朋友圈风格。
+ * 公开个人主页头部 — 全宽封面 + 右下角头像/昵称叠加。
  *
- * 布局（从上到下）：
- *   1. 大背景封面图 (cover_image_url)
- *   2. 圆形头像，覆盖在封底底部居中
- *   3. 昵称
- *   4. 个性签名 (bio)
+ * 参考：GitHub profile / 类社交平台风格——
+ *   封面全宽平铺，头像(小)+名字在封面右下角叠在封面上，
+ *   无独立信息带，下方直接接动态内容。
  */
 export function ProfileHeader() {
   const [profile, setProfile] = useState<ProfileDTO | null>(null);
+  const [showCover, setShowCover] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -28,69 +28,150 @@ export function ProfileHeader() {
     };
   }, []);
 
+  // ESC 关闭大图
+  useEffect(() => {
+    if (!showCover) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowCover(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showCover]);
+
   const name = profile?.display_name || AUTHOR_NAME;
   const avatar = profile?.avatar_url;
   const cover = profile?.cover_image_url;
-  const bio = profile?.bio;
+
+  const openCover = () => {
+    if (cover) setShowCover(true);
+  };
 
   return (
-    <div className="relative overflow-hidden rounded-2xl" style={{ backgroundColor: 'var(--color-surface-2)' }}>
-      {/* 封面背景图 */}
-      <div className="relative h-44 w-full sm:h-52 md:h-56 lg:h-64">
-        {cover ? (
+    <div className="relative">
+      {cover ? (
+        <>
+          {/* 封面背景图 — 边缘模糊 + 点击看大图 */}
+          <div
+            className="relative h-48 w-full cursor-pointer sm:h-56 md:h-64 lg:h-[18rem]"
+            onClick={openCover}
+            role="button"
+            tabIndex={0}
+            aria-label="查看背景图大图"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openCover();
+              }
+            }}
+          >
+            {/* 内层裁剪容器 */}
+            <div className="absolute inset-0 overflow-hidden">
+              {/* 模糊底层 */}
+              <img
+                src={cover}
+                alt=""
+                aria-hidden
+                className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
+              />
+              {/* 清晰层：中心清晰、边缘羽化 */}
+              <img
+                src={cover}
+                alt=""
+                className="relative h-full w-full object-cover"
+                style={{
+                  WebkitMaskImage:
+                    'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
+                  maskImage:
+                    'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
+                }}
+              />
+              {/* 底部渐变遮罩 — 让叠加文字可读 */}
+              <div
+                className="absolute inset-x-0 bottom-0 h-24"
+                style={{
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)',
+                }}
+              />
+            </div>
+
+            {/* 左下角：小头像 + 昵称，叠在封面上 */}
+            <div className="absolute bottom-4 left-5 flex items-center gap-2.5">
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 text-sm font-bold sm:h-11 sm:w-11"
+                style={{
+                  borderColor: 'rgba(255,255,255,0.7)',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--fg-muted)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                }}
+              >
+                {avatar ? (
+                  <img src={avatar} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  name.charAt(0)
+                )}
+              </div>
+              <span
+                className="text-base font-semibold tracking-tight drop-shadow-sm sm:text-lg"
+                style={{ color: '#fff' }}
+              >
+                {name}
+              </span>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* 无背景图：仅显示一行头像 + 名字 */
+        <div className="flex items-center justify-start gap-2.5 px-4 py-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 text-sm font-bold sm:h-11 sm:w-11"
+            style={{
+              borderColor: 'var(--line)',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--fg-muted)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            }}
+          >
+            {avatar ? (
+              <img src={avatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              name.charAt(0)
+            )}
+          </div>
+          <span
+            className="text-base font-semibold tracking-tight sm:text-lg"
+            style={{ color: 'var(--fg)' }}
+          >
+            {name}
+          </span>
+        </div>
+      )}
+
+      {/* 背景图大图查看（无模糊原图） */}
+      {showCover && cover && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setShowCover(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="背景图大图"
+        >
+          <button
+            type="button"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+            onClick={() => setShowCover(false)}
+            aria-label="关闭"
+          >
+            <X size={22} weight="bold" />
+          </button>
           <img
             src={cover}
             alt=""
-            className="h-full w-full object-cover"
+            className="max-h-[90vh] max-w-[95vw] rounded-lg object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
           />
-        ) : (
-          <div className="m-cover-fallback h-full w-full" />
-        )}
-        {/* 底部渐变遮罩 */}
-        <div
-          className="absolute inset-x-0 bottom-0 h-20"
-          style={{
-            background: 'linear-gradient(to top, rgba(0,0,0,0.35), transparent)',
-          }}
-        />
-      </div>
-
-      {/* 头像 — 覆盖在封底底部中央 */}
-      <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
-        <div
-          className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 text-2xl font-bold sm:h-24 sm:w-24"
-          style={{
-            borderColor: 'var(--bg)',
-            backgroundColor: 'var(--color-surface)',
-            color: 'var(--fg-muted)',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-          }}
-        >
-          {avatar ? (
-            <img src={avatar} alt="" className="h-full w-full object-cover" />
-          ) : (
-            name.charAt(0)
-          )}
         </div>
-      </div>
-
-      {/* 信息区域 — 给头像留空间 */}
-      <div className="mt-10 pb-5 pt-2 text-center sm:mt-12 sm:pb-6">
-        <div
-          className="text-lg font-semibold tracking-tight sm:text-xl"
-          style={{ color: 'var(--fg)' }}
-        >
-          {name}
-        </div>
-        {bio && (
-          <p
-            className="mx-auto mt-1.5 max-w-md px-4 text-sm leading-relaxed sm:px-6"
-            style={{ color: 'var(--fg-muted)' }}
-          >
-            {bio}
-          </p>
-        )}
-      </div>
+      )}
     </div>
   );
 }

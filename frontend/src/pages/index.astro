@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '@layouts/BaseLayout.astro';
 import { Feed } from '@components/Feed';
-import { ProfileHeader } from '@components/ProfileHeader';
 import '../styles/global.css';
 ---
 
@@ -9,9 +8,7 @@ import '../styles/global.css';
   <!-- Sticky glass header -->
   <header class="m-glass sticky top-0 z-40">
     <div class="mx-auto flex h-14 max-w-[1200px] items-center justify-between px-4">
-      <div class="flex items-center gap-2.5">
-        <ProfileHeader client:load />
-      </div>
+      <span class="text-sm font-semibold" style={{ color: 'var(--fg)' }}>moments</span>
       <span class="m-meta">moments</span>
     </div>
   </header>
