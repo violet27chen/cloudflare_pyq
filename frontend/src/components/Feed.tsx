@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { PostCard } from './PostCard';
 import { ProfileHeader } from './ProfileHeader';
+import { NoteBlank } from '@phosphor-icons/react';
 import { FeedSkeleton } from './PostSkeleton';
 import { useVisitorId } from '../hooks/useVisitorId';
 import { fetchPosts, getProfile, type PostDTO, type ProfileDTO, type SidebarItemDTO } from '../utils/api';
@@ -125,8 +126,9 @@ export function Feed() {
     );
   }
 
-  if (posts.length === 0) {
-    return (
+  // 主内容区：无动态时显示空状态卡片；有动态时显示列表
+  const feedBody =
+    posts.length === 0 ? (
       <motion.div
         className="m-card p-12 text-center"
         initial={reduce ? false : { opacity: 0, y: 12 }}
@@ -140,19 +142,7 @@ export function Feed() {
             border: '1px solid var(--line)',
           }}
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--fg-muted)"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 20h9" />
-            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-          </svg>
+          <NoteBlank size={24} weight="regular" style={{ color: 'var(--fg-muted)' }} />
         </div>
         <p
           className="mt-4 text-[15px] font-medium"
@@ -167,16 +157,8 @@ export function Feed() {
           作者还没有分享任何内容，稍后再来看看吧~
         </p>
       </motion.div>
-    );
-  }
-
-  return (
-    <div className="flex gap-6 lg:flex-row">
-      {/* 主内容区 — 动态列表 */}
-      <div className="min-w-0 flex-1 space-y-4">
-        {/* 个人主页头部（朋友圈风格） */}
-        {profile && <ProfileHeader />}
-
+    ) : (
+      <>
         {posts.map((post, i) => (
           <PostCard
             key={post.id}
@@ -210,6 +192,17 @@ export function Feed() {
             <p className="m-meta mt-4">已经到底啦</p>
           </div>
         )}
+      </>
+    );
+
+  return (
+    <div className="flex gap-6 lg:flex-row">
+      {/* 主内容区 — 动态列表 */}
+      <div className="min-w-0 flex-1 space-y-4">
+        {/* 个人主页头部（朋友圈风格）— 无论有无动态都先显示封面区域 */}
+        {profile && <ProfileHeader />}
+
+        {feedBody}
       </div>
 
       {/* 侧边栏 — 仅桌面端显示 */}
