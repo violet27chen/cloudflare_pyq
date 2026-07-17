@@ -33,7 +33,7 @@ export function assertVisitorId(raw: unknown): string {
 const POST_MAX_LEN = 5000;
 const POST_MIN_LEN = 1;
 const MAX_IMAGES = 9;
-const IMAGE_URL_RE = /^https?:\/\/[^\s"'<>]{1,1024}$/i;
+const IMAGE_URL_RE = /^(?:https?:\/\/[^\s"'<>]{1,1024}|\/img\/[^\s"'<>]{1,1024})$/i;
 
 export interface PostInput {
   content: string;
@@ -78,6 +78,7 @@ export interface ProfileInput {
   display_name: string;
   bio: string;
   avatar_url: string;
+  cover_image_url: string;
 }
 
 /** Validate a profile body for PUT /api/profile. Returns normalized values. */
@@ -108,10 +109,17 @@ export function assertProfileInput(body: unknown): ProfileInput {
     throw new ValidationError('Avatar URL is invalid.');
   }
 
+  const cover =
+    typeof b.cover_image_url === 'string' ? b.cover_image_url.trim() : '';
+  if (cover && !IMAGE_URL_RE.test(cover)) {
+    throw new ValidationError('Cover image URL is invalid.');
+  }
+
   return {
     display_name: displayName || 'L.',
     bio,
     avatar_url: avatar,
+    cover_image_url: cover,
   };
 }
 

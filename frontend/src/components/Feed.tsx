@@ -3,20 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { PostCard } from './PostCard';
+import { ProfileHeader } from './ProfileHeader';
 import { FeedSkeleton } from './PostSkeleton';
 import { useVisitorId } from '../hooks/useVisitorId';
-import { fetchPosts, getProfile, type PostDTO, type ProfileDTO } from '../utils/api';
+import { fetchPosts, getProfile, type PostDTO, type ProfileDTO, type SidebarItemDTO } from '../utils/api';
 import { AUTHOR_NAME } from '../utils/config';
-
-/**
- * The main feed island.
- *
- * - Fetches posts with cursor pagination.
- * - Infinite scroll via IntersectionObserver (NOT window scroll listener).
- * - Shows skeleton on first load, inline spinner on subsequent pages.
- * - Empty state when no posts exist.
- * - Error state with retry.
- */
 
 const PAGE_SIZE = 10;
 
@@ -25,6 +16,7 @@ export function Feed() {
   const visitorId = useVisitorId();
   const [posts, setPosts] = useState<PostDTO[]>([]);
   const [profile, setProfile] = useState<ProfileDTO | null>(null);
+  const [sidebarItems, setSidebarItems] = useState<SidebarItemDTO[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -40,6 +32,16 @@ export function Feed() {
       .catch(() => {});
   }, []);
 
+  // Load sidebar items
+  useEffect(() => {
+    fetch('/api/sidebar')
+      .then((r) => r.json())
+      .then((body) => {
+        if (body.ok) setSidebarItems(body.data ?? []);
+      })
+      .catch(() => {});
+  }, []);
+
   // Initial load.
   const loadInitial = useCallback(async () => {
     if (!visitorId) return;
@@ -51,7 +53,7 @@ export function Feed() {
       setCursor(res.next_cursor);
       setHasMore(res.next_cursor !== null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load posts.');
+      setError(err instanceof Error ? err.message : '加载动态失败');
     } finally {
       setLoading(false);
     }
@@ -96,6 +98,10 @@ export function Feed() {
     };
   }, [loadMore, hasMore]);
 
+  // Author info for post cards (synced from profile)
+  const authorName = profile?.display_name || AUTHOR_NAME;
+  const authorAvatar = profile?.avatar_url || undefined;
+
   // --- Render states ---
 
   if (loading) {
@@ -113,7 +119,7 @@ export function Feed() {
           onClick={loadInitial}
           className="m-btn-primary mt-4 px-5 py-2 text-sm"
         >
-          Try again
+          重试
         </button>
       </div>
     );
@@ -152,87 +158,138 @@ export function Feed() {
           className="mt-4 text-[15px] font-medium"
           style={{ color: 'var(--fg)' }}
         >
-          No posts yet
+          还没有动态
         </p>
         <p
           className="mt-1 text-sm"
           style={{ color: 'var(--fg-muted)' }}
         >
-          The author hasn't shared anything. Check back soon.
+          作者还没有分享任何内容，稍后再来看看吧~
         </p>
       </motion.div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Author profile intro */}
-      {profile && (
-        <div className="m-card flex items-center gap-4 p-5">
-          <div
-            className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full text-lg font-semibold"
-            style={{
-              backgroundColor: 'var(--color-surface-2)',
-              color: 'var(--fg)',
-              border: '1px solid var(--line)',
-            }}
-          >
-            {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-            ) : (
-              (profile.display_name || AUTHOR_NAME).charAt(0)
-            )}
-          </div>
-          <div className="min-w-0">
-            <div
-              className="text-lg font-semibold tracking-tight"
-              style={{ color: 'var(--fg)' }}
-            >
-              {profile.display_name || AUTHOR_NAME}
-            </div>
-            {profile.bio && (
-              <p
-                className="mt-0.5 text-sm leading-relaxed"
-                style={{ color: 'var(--fg-muted)' }}
-              >
-                {profile.bio}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
+    <div className="flex gap-6 lg:flex-row">
+      {/* 主内容区 — 动态列表 */}
+      <div className="min-w-0 flex-1 space-y-4">
+        {/* 个人主页头部（朋友圈风格） */}
+        {profile && <ProfileHeader />}
 
-      {posts.map((post, i) => (
-        <PostCard
-          key={post.id}
-          post={post}
-          visitorId={visitorId}
-          index={i}
-        />
-      ))}
-
-      {/* Infinite scroll sentinel */}
-      {hasMore && (
-        <div ref={sentinelRef} className="flex justify-center py-6">
-          {loadingMore && (
-            <div className="flex items-center gap-2">
-              <div className="m-skeleton h-4 w-4 rounded-full" />
-              <span className="m-meta">Loading more</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* End of feed */}
-      {!hasMore && posts.length > 0 && (
-        <div className="py-8 text-center">
-          <div
-            className="mx-auto h-px w-16"
-            style={{ backgroundColor: 'var(--line)' }}
+        {posts.map((post, i) => (
+          <PostCard
+            key={post.id}
+            post={post}
+            visitorId={visitorId}
+            index={i}
+            authorName={authorName}
+            authorAvatar={authorAvatar}
           />
-          <p className="m-meta mt-4">You've reached the beginning</p>
-        </div>
+        ))}
+
+        {/* Infinite scroll sentinel */}
+        {hasMore && (
+          <div ref={sentinelRef} className="flex justify-center py-6">
+            {loadingMore && (
+              <div className="flex items-center gap-2">
+                <div className="m-skeleton h-4 w-4 rounded-full" />
+                <span className="m-meta">加载更多...</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* End of feed */}
+        {!hasMore && posts.length > 0 && (
+          <div className="py-8 text-center">
+            <div
+              className="mx-auto h-px w-16"
+              style={{ backgroundColor: 'var(--line)' }}
+            />
+            <p className="m-meta mt-4">已经到底啦</p>
+          </div>
+        )}
+      </div>
+
+      {/* 侧边栏 — 仅桌面端显示 */}
+      {sidebarItems.length > 0 && (
+        <aside className="hidden w-80 shrink-0 space-y-4 lg:block">
+          {sidebarItems.map((item) => (
+            <SidebarCard key={item.id} item={item} />
+          ))}
+        </aside>
       )}
     </div>
   );
 }
+
+/* ---------- Sidebar card component ---------- */
+
+function SidebarCard({ item }: { item: SidebarItemDTO }) {
+  if (item.type === 'image') {
+    return (
+      <div className="m-card overflow-hidden">
+        <img
+          src={item.content}
+          alt={item.title || ''}
+          className="h-auto w-full object-cover"
+        />
+        {item.title && (
+          <div className="p-3">
+            <p className="text-sm font-medium" style={{ color: 'var(--fg)' }}>
+              {item.title}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (item.type === 'markdown') {
+    return (
+      <div className="m-card p-5">
+        {item.title && (
+          <h3
+            className="mb-2 text-sm font-semibold"
+            style={{ color: 'var(--fg)' }}
+          >
+            {item.title}
+          </h3>
+        )}
+        <div
+          className="text-sm leading-relaxed prose-headings:font-semibold prose-p:text-[var(--fg-soft)] prose-a:text-[var(--color-accent)]"
+          style={{ color: 'var(--fg-soft)' }}
+        >
+          <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
+            {item.content}
+          </ReactMarkdown>
+        </div>
+      </div>
+    );
+  }
+
+  /* text (default) */
+  return (
+    <div className="m-card p-5">
+      {item.title && (
+        <h3
+          className="mb-2 text-sm font-semibold"
+          style={{ color: 'var(--fg)' }}
+        >
+          {item.title}
+        </h3>
+      )}
+      <p
+        className="whitespace-pre-wrap text-sm leading-relaxed"
+        style={{ color: 'var(--fg-soft)' }}
+      >
+        {item.content}
+      </p>
+    </div>
+  );
+}
+
+// Lazy import ReactMarkdown for sidebar markdown rendering
+import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';

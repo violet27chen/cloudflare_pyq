@@ -19,6 +19,15 @@ export interface ProfileDTO {
   display_name: string;
   bio: string;
   avatar_url: string;
+  cover_image_url: string;
+}
+
+export interface SidebarItemDTO {
+  id: string;
+  type: 'image' | 'text' | 'markdown';
+  title: string;
+  content: string;
+  position: number;
 }
 
 interface ApiResponse<T> {
@@ -183,4 +192,31 @@ export async function uploadImage(
     throw new Error(body.error?.message ?? 'Upload failed.');
   }
   return body.data;
+}
+
+/* ---------- Sidebar (author only) ---------- */
+
+/** GET /api/sidebar (public) */
+export function fetchSidebar() {
+  return apiFetch<SidebarItemDTO[]>('/api/sidebar');
+}
+
+/** POST /api/sidebar (author only) */
+export function createSidebarItem(
+  token: string,
+  data: { type: 'image' | 'text' | 'markdown'; title: string; content: string; position?: number },
+) {
+  return apiFetch<SidebarItemDTO>('/api/sidebar', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(data),
+  });
+}
+
+/** DELETE /api/sidebar/:id (author only) */
+export function deleteSidebarItem(token: string, id: string) {
+  return apiFetch<{ deleted: boolean }>(`/api/sidebar/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
 }

@@ -16,16 +16,18 @@ const DEFAULT_PROFILE: ProfileDTO = {
   display_name: 'L.',
   bio: '',
   avatar_url: '',
+  cover_image_url: '',
 };
 
 function rowToDTO(
-  r: { display_name: string; bio: string; avatar_url: string } | null,
+  r: { display_name: string; bio: string; avatar_url: string; cover_image_url: string } | null,
 ): ProfileDTO {
   if (!r) return DEFAULT_PROFILE;
   return {
     display_name: r.display_name || DEFAULT_PROFILE.display_name,
     bio: r.bio || '',
     avatar_url: r.avatar_url || '',
+    cover_image_url: r.cover_image_url || '',
   };
 }
 
@@ -34,14 +36,14 @@ function rowToDTO(
  */
 profile.get('/', async (c) => {
   const row = await c.env.DB
-    .prepare(`SELECT display_name, bio, avatar_url FROM profile WHERE id = 'me'`)
-    .first<{ display_name: string; bio: string; avatar_url: string }>();
+    .prepare(`SELECT display_name, bio, avatar_url, cover_image_url FROM profile WHERE id = 'me'`)
+    .first<{ display_name: string; bio: string; avatar_url: string; cover_image_url: string }>();
   return ok<ProfileDTO>(c, rowToDTO(row));
 });
 
 /**
  * PUT /api/profile — update [author]
- * Body: { display_name?, bio?, avatar_url? }
+ * Body: { display_name?, bio?, avatar_url?, cover_image_url? }
  */
 profile.put('/', requireAuthor, async (c) => {
   let body: unknown;
@@ -55,21 +57,23 @@ profile.put('/', requireAuthor, async (c) => {
 
   await c.env.DB
     .prepare(
-      `INSERT INTO profile (id, display_name, bio, avatar_url, updated_at)
-       VALUES ('me', ?, ?, ?, ?)
+      `INSERT INTO profile (id, display_name, bio, avatar_url, cover_image_url, updated_at)
+       VALUES ('me', ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          display_name = excluded.display_name,
          bio = excluded.bio,
          avatar_url = excluded.avatar_url,
+         cover_image_url = excluded.cover_image_url,
          updated_at = excluded.updated_at`,
     )
-    .bind(input.display_name, input.bio, input.avatar_url, now)
+    .bind(input.display_name, input.bio, input.avatar_url, input.cover_image_url, now)
     .run();
 
   return ok<ProfileDTO>(c, {
     display_name: input.display_name,
     bio: input.bio,
     avatar_url: input.avatar_url,
+    cover_image_url: input.cover_image_url,
   });
 });
 

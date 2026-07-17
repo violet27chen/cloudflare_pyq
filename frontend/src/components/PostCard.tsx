@@ -1,31 +1,23 @@
 'use client';
 
 import { motion, useReducedMotion } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
 import { ImageGrid } from './ImageGrid';
 import { LikeButton } from './LikeButton';
 import { formatRelative } from '../utils/time';
-import { AUTHOR_NAME } from '../utils/config';
 import type { PostDTO } from '../utils/api';
-
-/**
- * A single post card in the feed.
- *
- * Layout (top to bottom):
- *   [avatar] [author name]                    [timestamp]
- *   content text
- *   [image grid]
- *   [like button] [like count]
- *
- * Enters with a subtle fade-up on scroll (whileInView).
- */
 
 interface PostCardProps {
   post: PostDTO;
   visitorId: string;
   index: number;
+  /** 来自全局 profile 的作者信息（编辑个人信息后自动同步） */
+  authorName?: string;
+  authorAvatar?: string;
 }
 
-export function PostCard({ post, visitorId, index }: PostCardProps) {
+export function PostCard({ post, visitorId, index, authorName, authorAvatar }: PostCardProps) {
   const reduce = useReducedMotion();
 
   return (
@@ -51,14 +43,18 @@ export function PostCard({ post, visitorId, index }: PostCardProps) {
               border: '1px solid var(--line)',
             }}
           >
-            {AUTHOR_NAME.charAt(0)}
+            {authorAvatar ? (
+              <img src={authorAvatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              (authorName || 'L.').charAt(0)
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <div
               className="truncate text-[15px] font-medium"
               style={{ color: 'var(--fg)' }}
             >
-              {AUTHOR_NAME}
+              {authorName || 'L.'}
             </div>
           </div>
           <time
@@ -69,13 +65,15 @@ export function PostCard({ post, visitorId, index }: PostCardProps) {
           </time>
         </div>
 
-        {/* Content */}
-        <p
-          className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed"
+        {/* Content — 支持 Markdown 渲染 */}
+        <div
+          className="mt-4 text-[15px] leading-relaxed prose-headings:font-semibold prose-headings:text-[var(--fg)] prose-p:text-[var(--fg)] prose-a:text-[var(--color-accent)] prose-a:no-underline hover:prose-a:underline prose-strong:text-[var(--fg)] prose-code:text-[var(--fg-soft)] prose-code:bg-[var(--card-2)] prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-code:text-sm prose-li:text-[var(--fg)] prose-blockquote:border-l-[var(--color-accent)] prose-blockquote:text-[var(--fg-muted)]"
           style={{ color: 'var(--fg)', maxWidth: '65ch' }}
         >
-          {post.content}
-        </p>
+          <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
+            {post.content}
+          </ReactMarkdown>
+        </div>
 
         {/* Images */}
         <ImageGrid images={post.images} />

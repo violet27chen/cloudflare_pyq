@@ -66,6 +66,7 @@ export interface ProfileDTO {
   display_name: string;
   bio: string;
   avatar_url: string;
+  cover_image_url: string;
 }
 
 export interface ProfileRow {
@@ -73,6 +74,7 @@ export interface ProfileRow {
   display_name: string;
   bio: string;
   avatar_url: string;
+  cover_image_url: string;
   updated_at: string;
 }
 
