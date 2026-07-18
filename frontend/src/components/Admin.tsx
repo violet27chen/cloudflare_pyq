@@ -686,7 +686,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     onChange={handleAvatarUpload}
-                    className="hidden"
+                    className="v-hidden"
                     disabled={uploadingAvatar}
                   />
                   {uploadingAvatar ? '上传中...' : '上传头像'}
@@ -760,7 +760,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     onChange={handleCoverUpload}
-                    className="hidden"
+                    className="v-hidden"
                     disabled={uploadingCover}
                   />
                   {uploadingCover ? '上传中...' : '上传封面'}
@@ -885,7 +885,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                         : 'image/jpeg,image/png,image/webp'
                     }
                     onChange={handleBgUpload}
-                    className="hidden"
+                    className="v-hidden"
                     disabled={uploadingBg}
                   />
                   {uploadingBg
@@ -1181,7 +1181,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                     accept="image/jpeg,image/png,image/webp"
                     multiple
                     onChange={handleModalImageUpload}
-                    className="hidden"
+                    className="v-hidden"
                     disabled={modalUploading || modalImages.length >= 9}
                   />
                   <Image size={18} />
@@ -1456,7 +1456,7 @@ function ColumnManager({
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
                       onChange={handlePickImage}
-                      className="hidden"
+                      className="v-hidden"
                     />
                     重新选择
                   </label>
@@ -1486,7 +1486,7 @@ function ColumnManager({
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     onChange={handlePickImage}
-                    className="hidden"
+                    className="v-hidden"
                     disabled={uploading}
                   />
                   <Image size={16} />
