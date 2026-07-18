@@ -610,6 +610,10 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     setEditingPost(null);
     setModalContent('');
     setModalMedia([]);
+    setModalUploading(false);
+    setModalProgress(null);
+    setModalDragging(false);
+    dragDepth.current = 0;
     setEditModalOpen(true);
   }, []);
 
@@ -621,6 +625,10 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
         ? post.media
         : (post.images || []).map((url) => ({ type: 'image' as MediaType, url }));
     setModalMedia(base.map((m) => ({ id: crypto.randomUUID(), ...m })));
+    setModalUploading(false);
+    setModalProgress(null);
+    setModalDragging(false);
+    dragDepth.current = 0;
     setEditModalOpen(true);
   }, []);
 
@@ -629,6 +637,10 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     setEditingPost(null);
     setModalContent('');
     setModalMedia([]);
+    setModalUploading(false);
+    setModalProgress(null);
+    setModalDragging(false);
+    dragDepth.current = 0;
   }, []);
 
   /* ---------- Save post from modal ---------- */
@@ -1415,7 +1427,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                       multiple
                       onChange={(e) => handleAddMedia('image', e)}
                       className="v-hidden"
-                      disabled={modalUploading || modalMedia.length >= 9}
+                      disabled={modalMedia.length >= 9}
                     />
                     <Image size={16} />
                     图片
@@ -1427,7 +1439,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                       multiple
                       onChange={(e) => handleAddMedia('gif', e)}
                       className="v-hidden"
-                      disabled={modalUploading || modalMedia.length >= 9}
+                      disabled={modalMedia.length >= 9}
                     />
                     <FilmStrip size={16} />
                     动图
@@ -1439,7 +1451,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                       multiple
                       onChange={(e) => handleAddMedia('video', e)}
                       className="v-hidden"
-                      disabled={modalUploading || modalMedia.length >= 9}
+                      disabled={modalMedia.length >= 9}
                     />
                     <VideoCamera size={16} />
                     视频
@@ -1451,7 +1463,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                       multiple
                       onChange={(e) => handleAddMedia('live', e)}
                       className="v-hidden"
-                      disabled={modalUploading || modalMedia.length >= 9}
+                      disabled={modalMedia.length >= 9}
                     />
                     <Play size={16} />
                     实况
