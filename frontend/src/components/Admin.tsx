@@ -491,13 +491,15 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     [modalMedia.length, uploadOneMedia, inferMediaType],
   );
 
-  /* 文件选择（四个显式按钮）：clear value 允许重复选同一文件。 */
+  /* 文件选择（四个显式按钮）。
+   * ⚠️ 必须先 Array.from 再清空 value：input.files 是 live FileList，
+   *    input.value='' 会同步清空它，导致之前保存的引用也变空。 */
   const handleAddMedia = useCallback(
     (type: MediaType, e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
+      const fileArr = Array.from(e.target.files ?? []);
       e.target.value = '';
-      if (!files || files.length === 0) return;
-      addFiles(Array.from(files), type);
+      if (fileArr.length === 0) return;
+      addFiles(fileArr, type);
     },
     [addFiles],
   );
