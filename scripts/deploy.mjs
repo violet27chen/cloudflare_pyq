@@ -124,9 +124,16 @@ if (!toml.includes(dbId)) {
 
 console.log('→ 准备 R2 存储桶 (moments-images)...');
 const r2 = wrangle(['r2', 'bucket', 'create', 'moments-images']);
-if (r2.status !== 0) {
-  const msg = (r2.err || r2.out || '').split('\n').find((l) => l.trim()) || '';
-  console.log('  (跳过: ' + msg.trim() + ')');
+if (r2.status === 0) {
+  console.log('  已创建 R2 存储桶 moments-images');
+} else {
+  const full = (r2.err || r2.out || '').trim();
+  if (/already (exist|created)/i.test(full)) {
+    // 桶已存在 → 幂等跳过，绑定照常工作
+    console.log('  (跳过: 存储桶已存在)');
+  } else {
+    console.log('  (跳过，请手动确认 R2 是否可用: ' + full.split('\n').slice(0, 3).join(' ').trim() + ')');
+  }
 }
 
 console.log('→ 应用 D1 migrations...');
