@@ -18,6 +18,16 @@ export class ValidationError extends Error {
 
 const VISITOR_RE = /^visitor_[A-Za-z0-9_-]{6,48}$/;
 
+/** 动态支持的媒体类型。 */
+export const MEDIA_TYPES = ['image', 'gif', 'video', 'live'] as const;
+export type MediaType = (typeof MEDIA_TYPES)[number];
+
+export interface MediaInput {
+  type: MediaType;
+  url: string;
+  poster_url?: string;
+}
+
 /** Validate a visitor_id, returning it trimmed, or throw. */
 export function assertVisitorId(raw: unknown): string {
   if (typeof raw !== 'string') {
@@ -37,7 +47,10 @@ const IMAGE_URL_RE = /^(?:https?:\/\/[^\s"'<>]{1,1024}|\/img\/[^\s"'<>]{1,1024})
 
 export interface PostInput {
   content: string;
-  image_urls: string[];
+  /** 兼容旧客户端：仅图片 url 平铺数组（legacy，已不再由服务端写入）。 */
+  image_urls?: string[];
+  /** 带类型的媒体列表（始终存在，可能为空数组）。 */
+  media: MediaInput[];
 }
 
 /** Validate a post body for create/edit. Returns normalized values. */
@@ -54,19 +67,48 @@ export function assertPostInput(body: unknown): PostInput {
     );
   }
 
-  const rawImages = Array.isArray(b.image_urls) ? b.image_urls : [];
-  if (rawImages.length > MAX_IMAGES) {
-    throw new ValidationError(`A post may have at most ${MAX_IMAGES} images.`);
-  }
-  const image_urls: string[] = [];
-  for (const u of rawImages) {
-    if (typeof u !== 'string' || !IMAGE_URL_RE.test(u)) {
-      throw new ValidationError('One or more image URLs are invalid.');
+  // 优先使用带类型的 media；否则退回旧的 image_urls。
+  let media: MediaInput[];
+  if (Array.isArray(b.media)) {
+    if (b.media.length > MAX_IMAGES) {
+      throw new ValidationError(`一条动态最多包含 ${MAX_IMAGES} 个媒体。`);
     }
-    image_urls.push(u);
+    media = [];
+    for (const raw of b.media) {
+      if (!raw || typeof raw !== 'object') {
+        throw new ValidationError('媒体项格式错误。');
+      }
+      const m = raw as Record<string, unknown>;
+      const type = m.type;
+      if (typeof type !== 'string' || !MEDIA_TYPES.includes(type as MediaType)) {
+        throw new ValidationError('媒体类型非法（应为 image/gif/video/live）。');
+      }
+      const url = typeof m.url === 'string' ? m.url.trim() : '';
+      if (!IMAGE_URL_RE.test(url)) {
+        throw new ValidationError('媒体地址无效。');
+      }
+      const poster = typeof m.poster_url === 'string' ? m.poster_url.trim() : '';
+      if (poster && !IMAGE_URL_RE.test(poster)) {
+        throw new ValidationError('媒体封面地址无效。');
+      }
+      media.push({ type: type as MediaType, url, poster_url: poster || undefined });
+    }
+  } else if (Array.isArray(b.image_urls)) {
+    if (b.image_urls.length > MAX_IMAGES) {
+      throw new ValidationError(`一条动态最多包含 ${MAX_IMAGES} 个媒体。`);
+    }
+    media = [];
+    for (const u of b.image_urls) {
+      if (typeof u !== 'string' || !IMAGE_URL_RE.test(u)) {
+        throw new ValidationError('One or more image URLs are invalid.');
+      }
+      media.push({ type: 'image', url: u });
+    }
+  } else {
+    media = [];
   }
 
-  return { content, image_urls };
+  return { content, image_urls: media.map((m) => m.url), media };
 }
 
 /* ---------------- profile (author info) ---------------- */

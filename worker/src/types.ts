@@ -34,12 +34,25 @@ export interface LikeRow {
   created_at: string;
 }
 
+/** 单条媒体：图片 / 动图 / 视频 / 实况（Live Photo）。 */
+export type MediaType = 'image' | 'gif' | 'video' | 'live';
+
+export interface MediaItem {
+  type: MediaType;
+  /** 主资源地址（图片 / 动图 / 视频 的 /img/... 或 http(s) 地址）。 */
+  url: string;
+  /** 视频 / 实况 的静态封面（/img/... 或 http(s) 地址）。可选。 */
+  poster_url?: string;
+}
+
 export interface PostImageRow {
   id: string;
   post_id: string;
   url: string;
   position: number;
   created_at: string;
+  media_type: MediaType;
+  poster_url: string;
 }
 
 export interface PostRow {
@@ -54,7 +67,10 @@ export interface PostRow {
 export interface PostDTO {
   id: string;
   content: string;
+  /** 兼容旧客户端：所有媒体的主 url 平铺数组。 */
   images: string[];
+  /** 新客户端使用的带类型的媒体列表。 */
+  media: MediaItem[];
   created_at: string;
   updated_at: string;
   like_count: number;

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { AppType, PostDTO, PostRow, PostImageRow, ListResult } from '../types';
+import type { AppType, PostDTO, PostRow, PostImageRow, ListResult, MediaItem } from '../types';
 import { ok, fail, ERR } from '../utils/response';
 import {
   decodeCursor,
@@ -7,6 +7,7 @@ import {
   parseIntQuery,
   assertVisitorId,
   assertPostInput,
+  type MediaInput,
 } from '../utils/validate';
 import { rateLimit } from '../middleware/rateLimit';
 import { requireAuthor } from '../middleware/auth';
@@ -42,17 +43,37 @@ async function likeCount(db: D1Database, postId: string): Promise<number> {
   return r?.c ?? 0;
 }
 
-function imgInsertStmt(db: D1Database, postId: string, imageUrls: string[]) {
+function imgInsertStmt(db: D1Database, postId: string, media: MediaInput[]) {
   const now = new Date().toISOString();
-  const rows = imageUrls.map((url, i) => [crypto.randomUUID(), postId, url, i, now]);
-  const placeholders = rows.map(() => '(?, ?, ?, ?, ?)').join(',');
+  const rows = media.map((m, i) => [
+    crypto.randomUUID(),
+    postId,
+    m.url,
+    i,
+    now,
+    m.type,
+    m.poster_url ?? '',
+  ]);
+  const placeholders = rows.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(',');
   const flat: unknown[] = [];
   for (const r of rows) flat.push(...r);
   return db
     .prepare(
-      `INSERT INTO post_images (id, post_id, url, position, created_at) VALUES ${placeholders}`,
+      `INSERT INTO post_images (id, post_id, url, position, created_at, media_type, poster_url) VALUES ${placeholders}`,
     )
     .bind(...flat);
+}
+
+/** 把若干 PostImageRow 组装成带类型的 MediaItem[]（按顺序）。 */
+function rowsToMedia(rows: PostImageRow[]): MediaItem[] {
+  return rows
+    .slice()
+    .sort((a, b) => a.position - b.position)
+    .map((i) => ({
+      type: i.media_type,
+      url: i.url,
+      ...(i.poster_url ? { poster_url: i.poster_url } : {}),
+    }));
 }
 
 /**
@@ -99,7 +120,7 @@ posts.get('/', async (c) => {
   const [imgRes, likedRes] = await Promise.all([
     db
       .prepare(
-        `SELECT id, post_id, url, position, created_at FROM post_images
+        `SELECT id, post_id, url, position, created_at, media_type, poster_url FROM post_images
          WHERE post_id IN (${placeholders}) ORDER BY position ASC`,
       )
       .bind(...postIds)
@@ -125,17 +146,19 @@ posts.get('/', async (c) => {
     likedSet.add(r.post_id);
   }
 
-  const items: PostDTO[] = trimmed.map((p) => ({
-    id: p.id,
-    content: p.content,
-    images: (imagesByPost.get(p.id) ?? [])
-      .sort((a, b) => a.position - b.position)
-      .map((i) => i.url),
-    created_at: p.created_at,
-    updated_at: p.updated_at,
-    like_count: p.like_count ?? 0,
-    liked: likedSet.has(p.id),
-  }));
+  const items: PostDTO[] = trimmed.map((p) => {
+    const media = rowsToMedia(imagesByPost.get(p.id) ?? []);
+    return {
+      id: p.id,
+      content: p.content,
+      images: media.map((m) => m.url),
+      media,
+      created_at: p.created_at,
+      updated_at: p.updated_at,
+      like_count: p.like_count ?? 0,
+      liked: likedSet.has(p.id),
+    };
+  });
 
   let next_cursor: string | null = null;
   const last = trimmed[trimmed.length - 1];
@@ -167,12 +190,13 @@ posts.get('/:id', async (c) => {
 
   const imgRes = await db
     .prepare(
-      `SELECT id, post_id, url, position, created_at FROM post_images
+      `SELECT id, post_id, url, position, created_at, media_type, poster_url FROM post_images
        WHERE post_id = ? ORDER BY position ASC`,
     )
     .bind(id)
     .all<PostImageRow>();
   const images = imgRes.results ?? [];
+  const media = rowsToMedia(images);
 
   let liked = false;
   if (visitor) {
@@ -186,7 +210,8 @@ posts.get('/:id', async (c) => {
   const dto: PostDTO = {
     id: post.id,
     content: post.content,
-    images: images.map((i) => i.url),
+    images: media.map((m) => m.url),
+    media,
     created_at: post.created_at,
     updated_at: post.updated_at,
     like_count: post.like_count ?? 0,
@@ -197,7 +222,7 @@ posts.get('/:id', async (c) => {
 
 /**
  * POST /api/posts — create [author]
- * Body: { content, image_urls?: string[] }
+ * Body: { content, media?: MediaInput[] }  (legacy: image_urls?: string[])
  */
 posts.post('/', requireAuthor, async (c) => {
   let body: unknown;
@@ -216,14 +241,15 @@ posts.post('/', requireAuthor, async (c) => {
     .bind(id, input.content, now, now)
     .run();
 
-  if (input.image_urls.length > 0) {
-    await imgInsertStmt(db, id, input.image_urls).run();
+  if (input.media.length > 0) {
+    await imgInsertStmt(db, id, input.media).run();
   }
 
   const dto: PostDTO = {
     id,
     content: input.content,
-    images: input.image_urls,
+    images: input.media.map((m) => m.url),
+    media: input.media,
     created_at: now,
     updated_at: now,
     like_count: 0,
@@ -234,7 +260,7 @@ posts.post('/', requireAuthor, async (c) => {
 
 /**
  * PATCH /api/posts/:id — edit [author]
- * Body: { content, image_urls?: string[] }  (replaces images entirely)
+ * Body: { content, media?: MediaInput[] }  (replaces media entirely)
  */
 posts.patch('/:id', requireAuthor, async (c) => {
   const id = c.req.param('id');
@@ -263,8 +289,8 @@ posts.patch('/:id', requireAuthor, async (c) => {
 
   // Replace images: delete existing, then insert the new set.
   await db.prepare(`DELETE FROM post_images WHERE post_id = ?`).bind(id).run();
-  if (input.image_urls.length > 0) {
-    await imgInsertStmt(db, id, input.image_urls).run();
+  if (input.media.length > 0) {
+    await imgInsertStmt(db, id, input.media).run();
   }
 
   const like_count = await likeCount(db, id);
@@ -276,7 +302,8 @@ posts.patch('/:id', requireAuthor, async (c) => {
   const dto: PostDTO = {
     id,
     content: updated?.content ?? input.content,
-    images: input.image_urls,
+    images: input.media.map((m) => m.url),
+    media: input.media,
     created_at: updated?.created_at ?? new Date().toISOString(),
     updated_at: updated?.updated_at ?? new Date().toISOString(),
     like_count,

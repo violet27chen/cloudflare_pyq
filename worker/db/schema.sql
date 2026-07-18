@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS post_images (
   url         TEXT NOT NULL,
   position    INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT NOT NULL,
+  media_type  TEXT NOT NULL DEFAULT 'image'
+                CHECK(media_type IN ('image','gif','video','live')),
+  poster_url  TEXT NOT NULL DEFAULT '',
   FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_post_images_post ON post_images(post_id);

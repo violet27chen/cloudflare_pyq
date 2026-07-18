@@ -2,26 +2,31 @@
 
 import { useState, useEffect, type Dispatch, type SetStateAction } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
-import { X, CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { X, CaretLeft, CaretRight, Play } from '@phosphor-icons/react';
+import type { MediaItem } from '../utils/api';
 
 /**
- * 微信朋友圈九宫格：
- * - 1 张：原比例小图（最大宽 55%），不裁切。
+ * 微信朋友圈九宫格（支持混合媒体：图片 / 动图 / 视频 / 实况）：
+ * - 1 张：原比例小图（最大宽 55%）；视频 / 实况 最大宽 70%。
  * - 2 / 3 / 5-9 张：3 列正方形网格，先满第一行再换行。
  * - 4 张：2x2 正方形网格。
  * - 超过 9 张：显示前 9 张，第 9 格叠加「+N」遮罩，点击查看全部。
- * - 点击任意图打开全屏灯箱，支持左右切换（箭头 / ←→ / ESC 关闭）。
+ * - 点击任意媒体打开全屏灯箱，支持左右切换（箭头 / ←→ / ESC 关闭）。
  */
 
 interface ImageGridProps {
-  images: string[];
+  media: MediaItem[];
 }
 
 const MAX_VISIBLE = 9;
 
-export function ImageGrid({ images }: ImageGridProps) {
+function isVideoLike(item: MediaItem): boolean {
+  return item.type === 'video' || item.type === 'live';
+}
+
+export function ImageGrid({ media }: ImageGridProps) {
   const reduce = useReducedMotion();
-  const [lb, setLb] = useState<{ index: number; list: string[] } | null>(null);
+  const [lb, setLb] = useState<{ index: number; list: MediaItem[] } | null>(null);
 
   useEffect(() => {
     if (!lb) return;
@@ -38,20 +43,49 @@ export function ImageGrid({ images }: ImageGridProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [lb]);
 
-  if (images.length === 0) return null;
+  if (media.length === 0) return null;
 
-  const hasMore = images.length > MAX_VISIBLE;
-  const shown = images.slice(0, MAX_VISIBLE);
-  const extra = images.length - MAX_VISIBLE;
+  const hasMore = media.length > MAX_VISIBLE;
+  const shown = media.slice(0, MAX_VISIBLE);
+  const extra = media.length - MAX_VISIBLE;
+  const openAt = (i: number) => setLb({ index: i, list: media });
 
-  const openAt = (i: number) => setLb({ index: i, list: images });
-
-  // 单图：原比例，不裁切
-  if (images.length === 1) {
+  // 单条：原比例，不裁切
+  if (media.length === 1) {
+    const item = media[0];
+    const wide = isVideoLike(item);
     return (
       <div className="mt-4">
-        <div className="inline-block max-w-[55%]">
-          <GridImage src={images[0]} index={0} single moreBadge={0} onClick={() => openAt(0)} />
+        <div className={`inline-block ${wide ? 'max-w-[70%]' : 'max-w-[55%]'}`}>
+          <button
+            type="button"
+            className="relative block w-full cursor-zoom-in overflow-hidden rounded-[4px]"
+            style={{ border: '1px solid var(--line)' }}
+            onClick={() => openAt(0)}
+            aria-label={item.type === 'video' ? '播放视频' : item.type === 'live' ? '查看实况' : '查看图片'}
+          >
+            {wide ? (
+              <video
+                src={item.url}
+                poster={item.poster_url}
+                muted
+                playsInline
+                preload="metadata"
+                className="block w-full rounded-[4px] object-contain"
+                style={{ maxHeight: '80vh' }}
+              />
+            ) : (
+              <img src={item.url} alt="" className="block w-full rounded-[4px] object-cover" />
+            )}
+            {wide && (
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white">
+                  <Play weight="fill" size={20} />
+                </span>
+              </span>
+            )}
+            {item.type === 'live' && <LiveBadge />}
+          </button>
         </div>
 
         <Lightbox lb={lb} setLb={setLb} reduce={!!reduce} />
@@ -59,19 +93,18 @@ export function ImageGrid({ images }: ImageGridProps) {
     );
   }
 
-  const gridClass = images.length === 4 ? 'grid grid-cols-2 gap-1.5' : 'grid grid-cols-3 gap-1.5';
+  const gridClass = media.length === 4 ? 'grid grid-cols-2 gap-1.5' : 'grid grid-cols-3 gap-1.5';
 
   return (
     <div className="mt-4">
       <div className={gridClass}>
-        {shown.map((url, i) => {
+        {shown.map((item, i) => {
           const isMoreBadge = hasMore && i === MAX_VISIBLE - 1;
           return (
-            <GridImage
-              key={url}
-              src={url}
+            <MediaThumb
+              key={`${item.url}-${i}`}
+              item={item}
               index={i}
-              single={false}
               moreBadge={isMoreBadge ? extra : 0}
               onClick={() => openAt(i)}
             />
@@ -84,13 +117,91 @@ export function ImageGrid({ images }: ImageGridProps) {
   );
 }
 
+/** 网格中的单格（正方形裁切）。 */
+function MediaThumb({
+  item,
+  index,
+  moreBadge,
+  onClick,
+}: {
+  item: MediaItem;
+  index: number;
+  moreBadge: number;
+  onClick: () => void;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const videoLike = isVideoLike(item);
+
+  return (
+    <button
+      type="button"
+      className="relative aspect-square cursor-zoom-in overflow-hidden rounded-[4px]"
+      style={{ border: '1px solid var(--line)' }}
+      onClick={onClick}
+      aria-label={
+        moreBadge > 0
+          ? `查看更多，共 ${moreBadge} 个`
+          : item.type === 'video'
+            ? `播放视频 ${index + 1}`
+            : item.type === 'live'
+              ? `查看实况 ${index + 1}`
+              : `查看图片 ${index + 1}`
+      }
+    >
+      {!loaded && <div className="absolute inset-0 m-skeleton" />}
+      {videoLike ? (
+        <video
+          src={item.url}
+          poster={item.poster_url}
+          muted
+          playsInline
+          preload="metadata"
+          onLoadedData={() => setLoaded(true)}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        />
+      ) : (
+        <img
+          src={item.url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        />
+      )}
+      {videoLike && (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white">
+            <Play weight="fill" size={16} />
+          </span>
+        </span>
+      )}
+      {item.type === 'live' && <LiveBadge />}
+      {moreBadge > 0 && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/45">
+          <span className="text-lg font-semibold text-white">+{moreBadge}</span>
+        </div>
+      )}
+    </button>
+  );
+}
+
+/** 实况角标。 */
+function LiveBadge() {
+  return (
+    <span className="absolute bottom-1 left-1 flex items-center rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
+      实况
+    </span>
+  );
+}
+
 function Lightbox({
   lb,
   setLb,
   reduce,
 }: {
-  lb: { index: number; list: string[] } | null;
-  setLb: Dispatch<SetStateAction<{ index: number; list: string[] } | null>>;
+  lb: { index: number; list: MediaItem[] } | null;
+  setLb: Dispatch<SetStateAction<{ index: number; list: MediaItem[] } | null>>;
   reduce: boolean;
 }) {
   return (
@@ -103,7 +214,7 @@ function Lightbox({
           exit={{ opacity: 0 }}
           onClick={() => setLb(null)}
           role="dialog"
-          aria-label="图片预览"
+          aria-label="媒体预览"
         >
           <button
             type="button"
@@ -147,12 +258,7 @@ function Lightbox({
             </button>
           )}
 
-          <img
-            src={lb.list[lb.index]}
-            alt=""
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[88vh] max-w-[92vw] rounded-lg object-contain"
-          />
+          <LightboxItem item={lb.list[lb.index]} />
 
           {lb.list.length > 1 && (
             <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm text-white">
@@ -165,45 +271,29 @@ function Lightbox({
   );
 }
 
-interface GridImageProps {
-  src: string;
-  index: number;
-  single: boolean;
-  moreBadge: number;
-  onClick: () => void;
-}
-
-function GridImage({ src, index, single, moreBadge, onClick }: GridImageProps) {
-  const [loaded, setLoaded] = useState(false);
-
-  return (
-    <button
-      type="button"
-      className={`relative cursor-zoom-in overflow-hidden rounded-[4px] ${
-        single ? 'block w-full' : 'aspect-square'
-      }`}
-      style={{ border: '1px solid var(--line)' }}
-      onClick={onClick}
-      aria-label={moreBadge > 0 ? `查看更多图片，共 ${moreBadge} 张` : `查看图片 ${index + 1}`}
-    >
-      {!loaded && (
-        <div className={`absolute inset-0 ${single ? 'bg-[var(--card-2)]' : 'm-skeleton'}`} />
-      )}
-      <img
-        src={src}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        onLoad={() => setLoaded(true)}
-        className={`transition-all duration-500 ${
-          single ? 'block h-auto w-full object-cover' : 'absolute inset-0 h-full w-full object-cover'
-        } ${loaded ? 'scale-100 opacity-100' : 'scale-105 opacity-0'}`}
+/** 灯箱中的单个媒体：图片 / 动图 用 <img>，视频 / 实况 用 <video>。 */
+function LightboxItem({ item }: { item: MediaItem }) {
+  if (isVideoLike(item)) {
+    return (
+      <video
+        src={item.url}
+        poster={item.poster_url}
+        controls
+        autoPlay={item.type === 'live'}
+        loop={item.type === 'live'}
+        muted={item.type === 'live'}
+        playsInline
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[88vh] max-w-[92vw] rounded-lg bg-black object-contain"
       />
-      {moreBadge > 0 && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/45">
-          <span className="text-lg font-semibold text-white">+{moreBadge}</span>
-        </div>
-      )}
-    </button>
+    );
+  }
+  return (
+    <img
+      src={item.url}
+      alt=""
+      onClick={(e) => e.stopPropagation()}
+      className="max-h-[88vh] max-w-[92vw] rounded-lg object-contain"
+    />
   );
 }

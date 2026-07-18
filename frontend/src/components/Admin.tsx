@@ -21,10 +21,75 @@ import {
   type ProfileDTO,
   type SidebarItemDTO,
   type ThemeColors,
+  type MediaType,
+  type MediaItem,
 } from '../utils/api';
 import { formatRelative } from '../utils/time';
-import { Warning, Image } from '@phosphor-icons/react';
+import { Warning, Image, VideoCamera, Play, FilmStrip } from '@phosphor-icons/react';
 import { ImageCropper } from './ImageCropper';
+
+/** 写动态模态框中正在编辑的媒体项（含本地预览与上传状态）。 */
+interface DraftMedia {
+  id: string;
+  type: MediaType;
+  /** 主资源地址：上传后为 /img/...，上传中为本地的 object URL 预览。 */
+  url: string;
+  /** 视频 / 实况 的封面（/img/...）。 */
+  poster_url?: string;
+  uploading?: boolean;
+}
+
+/** 从视频文件抓取第一帧作为实况封面（返回 dataURL）。失败返回 null。 */
+async function extractPoster(file: File): Promise<string | null> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    v.muted = true;
+    v.preload = 'auto';
+    const objectUrl = URL.createObjectURL(file);
+    v.src = objectUrl;
+    let done = false;
+    const finish = (url: string | null) => {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(objectUrl);
+      resolve(url);
+    };
+    const capture = () => {
+      try {
+        const w = v.videoWidth || 1280;
+        const h = v.videoHeight || 720;
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return finish(null);
+        ctx.drawImage(v, 0, 0, w, h);
+        finish(canvas.toDataURL('image/jpeg', 0.7));
+      } catch {
+        finish(null);
+      }
+    };
+    v.addEventListener('loadeddata', () => {
+      try {
+        if (v.duration > 0.05) v.currentTime = Math.min(0.1, v.duration * 0.1);
+        else capture();
+      } catch {
+        capture();
+      }
+    });
+    v.addEventListener('seeked', capture);
+    v.addEventListener('error', () => finish(null));
+    // 兜底超时，避免某些格式无法解码时一直挂着
+    setTimeout(() => finish(null), 8000);
+  });
+}
+
+/** dataURL -> File（用于把抓取的封面作为图片上传）。 */
+async function dataURLtoFile(dataUrl: string, filename: string): Promise<File> {
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  return new File([blob], filename, { type: 'image/jpeg' });
+}
 
 /* 上传进度条：percent 为 0-100；传 null 时不显示。 */
 function UploadProgress({ percent }: { percent: number | null }) {
@@ -229,7 +294,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<PostDTO | null>(null);
   const [modalContent, setModalContent] = useState('');
-  const [modalImages, setModalImages] = useState<string[]>([]);
+  const [modalMedia, setModalMedia] = useState<DraftMedia[]>([]);
   const [modalUploading, setModalUploading] = useState(false);
   const [modalSaving, setModalSaving] = useState(false);
 
@@ -357,28 +422,61 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     [token],
   );
 
-  const handleModalImageUpload = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAddMedia = useCallback(
+    async (type: MediaType, e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
+      e.target.value = '';
       if (!files || files.length === 0) return;
+
+      const start = modalMedia.length;
+      const remaining = Math.max(0, 9 - start);
+      const toAdd = Array.from(files).slice(0, remaining);
+      if (toAdd.length === 0) return;
+
       setModalUploading(true);
       setModalProgress(0);
       try {
-        for (const file of Array.from(files)) {
-          if (modalImages.length >= 9) break;
-          const { url } = await uploadImage(token, file, setModalProgress);
-          setModalImages((prev) => [...prev, url]);
+        for (const file of toAdd) {
+          const id = crypto.randomUUID();
+          const previewUrl = URL.createObjectURL(file);
+          // 先放本地预览，上传完成后替换为服务器地址
+          setModalMedia((prev) => [...prev, { id, type, url: previewUrl, uploading: true }]);
+
+          try {
+            let posterUrl: string | undefined;
+            if (type === 'live') {
+              const dataUrl = await extractPoster(file);
+              if (dataUrl) {
+                const posterFile = await dataURLtoFile(dataUrl, `${id}.jpg`);
+                posterUrl = (await uploadMedia(token, posterFile, 'post')).url;
+              }
+            }
+            const { url } = await uploadMedia(token, file, 'post');
+            setModalMedia((prev) =>
+              prev.map((d) =>
+                d.id === id ? { id, type, url, poster_url: posterUrl, uploading: false } : d,
+              ),
+            );
+          } catch (err) {
+            // 上传失败：移除乐观预览
+            setModalMedia((prev) => prev.filter((d) => d.id !== id));
+            URL.revokeObjectURL(previewUrl);
+            throw err;
+          }
         }
       } catch (err) {
-        alert(err instanceof Error ? err.message : '图片上传失败');
+        alert(err instanceof Error ? err.message : '媒体上传失败');
       } finally {
         setModalUploading(false);
         setModalProgress(null);
-        e.target.value = '';
       }
     },
-    [token, modalImages.length],
+    [token, modalMedia.length],
   );
+
+  const handleRemoveMedia = useCallback((id: string) => {
+    setModalMedia((prev) => prev.filter((d) => d.id !== id));
+  }, []);
 
   /* ---------- Interface background upload/save ---------- */
 
@@ -435,14 +533,18 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
   const openCreateModal = useCallback(() => {
     setEditingPost(null);
     setModalContent('');
-    setModalImages([]);
+    setModalMedia([]);
     setEditModalOpen(true);
   }, []);
 
   const openEditModal = useCallback((post: PostDTO) => {
     setEditingPost(post);
     setModalContent(post.content);
-    setModalImages(post.images);
+    const base: MediaItem[] =
+      post.media && post.media.length > 0
+        ? post.media
+        : (post.images || []).map((url) => ({ type: 'image' as MediaType, url }));
+    setModalMedia(base.map((m) => ({ id: crypto.randomUUID(), ...m })));
     setEditModalOpen(true);
   }, []);
 
@@ -450,18 +552,25 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     setEditModalOpen(false);
     setEditingPost(null);
     setModalContent('');
-    setModalImages([]);
+    setModalMedia([]);
   }, []);
 
   /* ---------- Save post from modal ---------- */
   const handleSavePost = useCallback(async () => {
-    if (!modalContent.trim()) return;
+    const media = modalMedia
+      .filter((m) => !m.uploading)
+      .map((m) => ({
+        type: m.type,
+        url: m.url,
+        ...(m.poster_url ? { poster_url: m.poster_url } : {}),
+      }));
+    if (!modalContent.trim() && media.length === 0) return;
     setModalSaving(true);
     try {
       if (editingPost) {
-        await editPost(token, editingPost.id, { content: modalContent, image_urls: modalImages });
+        await editPost(token, editingPost.id, { content: modalContent, media });
       } else {
-        await createPost(token, { content: modalContent, image_urls: modalImages });
+        await createPost(token, { content: modalContent, media });
       }
       closeModal();
       await loadData();
@@ -470,7 +579,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     } finally {
       setModalSaving(false);
     }
-  }, [token, modalContent, modalImages, editingPost, closeModal, loadData]);
+  }, [token, modalContent, modalMedia, editingPost, closeModal, loadData]);
 
   /* ---------- Delete post ---------- */
 
@@ -1047,8 +1156,8 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                 <div className="m-meta mt-1.5 flex items-center gap-3">
                   <span>{formatRelative(post.created_at)}</span>
                   <span>{post.like_count} 赞</span>
-                  {post.images.length > 0 && (
-                    <span>{post.images.length} 张图</span>
+                  {((post.media?.length ?? 0) || post.images.length) > 0 && (
+                    <span>{(post.media?.length ?? 0) || post.images.length} 个媒体</span>
                   )}
                 </div>
               </div>
@@ -1151,42 +1260,111 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                   autoFocus
                 />
 
-                {/* Image previews in modal */}
-                {modalImages.length > 0 && (
+                {/* 媒体预览（图片 / 动图 / 视频 / 实况） */}
+                {modalMedia.length > 0 && (
                   <div className="mt-3 grid grid-cols-3 gap-2">
-                    {modalImages.map((url, i) => (
-                      <div key={url} className="group relative aspect-square overflow-hidden rounded-lg">
-                        <img src={url} alt="" className="h-full w-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => setModalImages((prev) => prev.filter((_, j) => j !== i))}
-                          className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+                    {modalMedia.map((m) => {
+                      const videoLike = m.type === 'video' || m.type === 'live';
+                      return (
+                        <div
+                          key={m.id}
+                          className="group relative aspect-square overflow-hidden rounded-lg"
+                          style={{ border: '1px solid var(--line)' }}
                         >
-                          ×
-                        </button>
-                      </div>
-                    ))}
+                          {videoLike ? (
+                            <video
+                              src={m.url}
+                              poster={m.poster_url}
+                              muted
+                              playsInline
+                              preload="metadata"
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <img src={m.url} alt="" className="h-full w-full object-cover" />
+                          )}
+                          {m.type === 'live' && (
+                            <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1 py-0.5 text-[10px] text-white">
+                              实况
+                            </span>
+                          )}
+                          {m.uploading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs text-white">
+                              上传中…
+                            </div>
+                          )}
+                          {!m.uploading && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveMedia(m.id)}
+                              className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+                              aria-label="删除"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
               {/* Modal footer */}
               <div className="flex items-center justify-between border-t p-5" style={{ borderColor: 'var(--line)' }}>
-                <label
-                  className="flex cursor-pointer items-center gap-1.5 text-sm transition-colors"
-                  style={{ color: 'var(--fg-muted)' }}
-                >
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    multiple
-                    onChange={handleModalImageUpload}
-                    className="v-hidden"
-                    disabled={modalUploading || modalImages.length >= 9}
-                  />
-                  <Image size={18} />
-                  {modalUploading ? '上传中...' : `添加图片 (${modalImages.length}/9)`}
-                </label>
+                <div className="flex flex-wrap items-center gap-1 text-sm" style={{ color: 'var(--fg-muted)' }}>
+                  <label className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 transition-colors hover:bg-[var(--color-surface-2)]">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      onChange={(e) => handleAddMedia('image', e)}
+                      className="v-hidden"
+                      disabled={modalUploading || modalMedia.length >= 9}
+                    />
+                    <Image size={16} />
+                    图片
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 transition-colors hover:bg-[var(--color-surface-2)]">
+                    <input
+                      type="file"
+                      accept="image/gif"
+                      multiple
+                      onChange={(e) => handleAddMedia('gif', e)}
+                      className="v-hidden"
+                      disabled={modalUploading || modalMedia.length >= 9}
+                    />
+                    <FilmStrip size={16} />
+                    动图
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 transition-colors hover:bg-[var(--color-surface-2)]">
+                    <input
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime"
+                      multiple
+                      onChange={(e) => handleAddMedia('video', e)}
+                      className="v-hidden"
+                      disabled={modalUploading || modalMedia.length >= 9}
+                    />
+                    <VideoCamera size={16} />
+                    视频
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 transition-colors hover:bg-[var(--color-surface-2)]">
+                    <input
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime"
+                      multiple
+                      onChange={(e) => handleAddMedia('live', e)}
+                      className="v-hidden"
+                      disabled={modalUploading || modalMedia.length >= 9}
+                    />
+                    <Play size={16} />
+                    实况
+                  </label>
+                  <span className="ml-1 text-xs opacity-70">
+                    {modalUploading ? '上传中…' : `${modalMedia.length}/9`}
+                  </span>
+                </div>
                 <UploadProgress percent={modalProgress} />
 
                 <div className="flex items-center gap-3">

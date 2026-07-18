@@ -1,9 +1,24 @@
 import { API_BASE } from './config';
 
+/** 动态媒体类型。 */
+export type MediaType = 'image' | 'gif' | 'video' | 'live';
+
+/** 单条媒体（图片 / 动图 / 视频 / 实况）。 */
+export interface MediaItem {
+  type: MediaType;
+  /** 主资源地址（/img/... 或 http(s)）。 */
+  url: string;
+  /** 视频 / 实况 的封面（/img/... 或 http(s)），可选。 */
+  poster_url?: string;
+}
+
 export interface PostDTO {
   id: string;
   content: string;
+  /** 兼容旧客户端：所有媒体主 url 平铺数组。 */
   images: string[];
+  /** 带类型的媒体列表。 */
+  media: MediaItem[];
   created_at: string;
   updated_at: string;
   like_count: number;
@@ -141,7 +156,7 @@ export function unlikePost(postId: string, visitorId: string) {
 /** POST /api/posts (author only) */
 export function createPost(
   token: string,
-  data: { content: string; image_urls?: string[] },
+  data: { content: string; media?: MediaItem[] },
 ) {
   return apiFetch<PostDTO>('/api/posts', {
     method: 'POST',
@@ -154,7 +169,7 @@ export function createPost(
 export function editPost(
   token: string,
   postId: string,
-  data: { content: string; image_urls?: string[] },
+  data: { content: string; media?: MediaItem[] },
 ) {
   return apiFetch<PostDTO>(`/api/posts/${postId}`, {
     method: 'PATCH',
@@ -219,14 +234,15 @@ export function updateSettings(
 }
 
 /** POST /api/upload (author only, multipart)
- *  kind: 'post' (image, default) | 'bg' (image or video, larger limit)
- *  onProgress: 0-100 上传进度回调（基于 XHR upload，仅浏览器环境有效） */
+ *  kind: 'post' (image/gif/video, default) | 'bg' (image or video, larger limit)
+ *  onProgress: 0-100 上传进度回调（基于 XHR upload，仅浏览器环境有效）
+ *  返回 { url, media_type } —— media_type 为服务器识别的类型（image/gif/video）。 */
 export function uploadMedia(
   token: string,
   file: File,
   kind: 'post' | 'bg' = 'post',
   onProgress?: (percent: number) => void,
-): Promise<{ url: string }> {
+): Promise<{ url: string; media_type?: 'image' | 'gif' | 'video' }> {
   return new Promise((resolve, reject) => {
     const url = `${API_BASE}/api/upload`;
     const formData = new FormData();
@@ -247,7 +263,9 @@ export function uploadMedia(
 
     xhr.onload = () => {
       try {
-        const body = JSON.parse(xhr.responseText) as ApiResponse<{ url: string }>;
+        const body = JSON.parse(
+          xhr.responseText,
+        ) as ApiResponse<{ url: string; media_type?: 'image' | 'gif' | 'video' }>;
         if (xhr.status >= 200 && xhr.status < 300 && body.ok && body.data) {
           resolve(body.data);
         } else {

@@ -69,8 +69,14 @@ export function PostCard({ post, visitorId, index, authorName, authorAvatar }: P
           </ReactMarkdown>
         </div>
 
-        {/* Images */}
-        <ImageGrid images={post.images} />
+        {/* Images / media */}
+        <ImageGrid
+          media={
+            post.media && post.media.length > 0
+              ? post.media
+              : post.images.map((url) => ({ type: 'image' as const, url }))
+          }
+        />
 
         {/* Footer: like button */}
         <div className="mt-4 flex items-center">
