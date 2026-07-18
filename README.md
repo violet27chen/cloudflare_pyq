@@ -1,7 +1,7 @@
 # Moments
 
 <p align="center">
-  <a href="https://deploy.workers.cloudflare.com/?repository-url=https://github.com/violet27chen/cloudflare_pyq" target="_blank" rel="noopener">
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/violet27chen/cloudflare_pyq" target="_blank" rel="noopener">
     <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" />
   </a>
 </p>
