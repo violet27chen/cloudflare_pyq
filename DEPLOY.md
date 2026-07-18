@@ -22,7 +22,11 @@ Admin auth is password-based: `POST /api/auth/session` returns a JWT signed with
 
 ## One-click (Deploy to Cloudflare button)
 
-点 README 顶部按钮即走 Cloudflare 部署流程。`wrangler.toml` 在**仓库根目录**，部署脚本 `scripts/deploy.mjs` 会自动创建 D1/R2、应用迁移、并在首次生成后台密码。`pnpm deploy` 即可触发该脚本。
+点 README 顶部按钮即进入 Cloudflare 网页部署引导（**无需在终端敲命令**）。引导会关联你的 GitHub 仓库并创建 Git 关联的 Worker（Workers Builds），之后每次 `git push` 到 `main` 都会自动重新部署。
+
+**关键**：引导里的 Deploy command 默认是 `wrangler deploy`，必须改成 **`pnpm deploy`**（只有 `scripts/deploy.mjs` 才会自动建 D1/R2、应用迁移、首次生成密码）。Build command 填 `pnpm build:frontend`（可选，因为 `pnpm deploy` 内部也会构建前端）。
+
+> ⚠️ Cloudflare 自动生成的构建令牌可能不含 **D1 写权限**。若 `wrangler d1 create` 报权限错误，请在构建设置的 API Token 处填入具备 **D1:Edit、R2:Edit、Workers Scripts:Edit** 的令牌。
 
 ## Manual deploy
 

@@ -9,6 +9,7 @@
     "dev": "pnpm --filter ./frontend dev",
     "dev:worker": "wrangler dev",
     "build:frontend": "pnpm --filter ./frontend build",
+    "build": "pnpm build:frontend",
     "preview": "pnpm --filter ./frontend preview",
     "typecheck": "pnpm -r typecheck",
     "deploy": "pnpm build:frontend && node scripts/deploy.mjs"
