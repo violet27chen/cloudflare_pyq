@@ -25,31 +25,28 @@ pnpm dev:worker
 
 ## Deploy
 
-The **Deploy to Cloudflare** button at the top starts Cloudflare's deploy flow. `wrangler.toml` lives at the **repo root**, so the button works directly. For a clean manual deploy:
+点顶部 **Deploy to Cloudflare** 按钮即可一键部署：仓库会被 fork 到你自己的 Cloudflare 账户，使用 `*.workers.dev` 子域。首次部署由 `scripts/deploy.mjs` **自动完成**以下步骤，无需手动操作：
+
+1. 创建 D1 数据库 `moments`，并把 id 写回 `wrangler.toml`；
+2. 创建 R2 存储桶 `moments-images`；
+3. 应用数据库迁移（`wrangler d1 migrations apply`）；
+4. 随机生成后台密码 `ADMIN_PASSWORD` 与 `ADMIN_JWT_SECRET`（**仅当未设置时**才生成，重部署不会覆盖已有密码）。
+
+部署日志里会打印生成的 `ADMIN_PASSWORD`，用它登录 `/admin`。
+
+手动部署（等价）：
 
 ```bash
-# 1. Clone & install
 git clone https://github.com/violet27chen/cloudflare_pyq
 cd cloudflare_pyq && pnpm install
-
-# 2. Create Cloudflare resources
-wrangler d1 create moments              # copy the returned database_id into wrangler.toml
-wrangler r2 bucket create moments-images
-
-# 3. Set secrets (never commit these)
-wrangler secret put ADMIN_JWT_SECRET --name moments-api   # e.g. openssl rand -hex 32
-wrangler secret put ADMIN_PASSWORD --name moments-api     # your admin login password
-
-# 4. Apply schema + seed to the REMOTE D1 database
-cd worker
-wrangler d1 execute moments --remote --file=./db/schema.sql
-wrangler d1 execute moments --remote --file=./db/seed.sql
-
-# 5. Deploy (builds frontend, then deploys the Worker)
-pnpm deploy
+pnpm deploy          # 构建前端 + 自动建库/桶/迁移/密钥 + 部署
 ```
 
-Open `https://<your-subdomain>.workers.dev` — the feed is at `/`, the author panel at `/admin` (log in with `ADMIN_PASSWORD`). A custom domain (`moments.qiyuan.icu`) is already wired via `[[routes]]` in `wrangler.toml`; to use your own, change the `pattern` and re-deploy (the zone must be on Cloudflare).
+打开 `https://<your-subdomain>.workers.dev`：feed 在 `/`，后台在 `/admin`（用日志里打印的密码登录）。
+
+### 自定义域名（可选）
+
+取消 `wrangler.toml` 末尾 `[[routes]]` 注释、改成你的域名并重新 `pnpm deploy`（该域名的 zone 必须在 Cloudflare 上，部署时会自动建 DNS + TLS）。
 
 ## Project structure
 
@@ -82,4 +79,4 @@ r2/                Images in the moments-images bucket (served same-origin via /
 
 ## Design
 
-Apple-style minimal social timeline. Warm monochrome palette, single rose accent, Geist typography, soft shadows, glass header, smooth micro-animations. Mobile-first, responsive, dark mode support.
+微信朋友圈风格的单作者动态页。浅灰页面背景 + 白色卡片（靠底色分层，不用大阴影/毛玻璃），中文系统字体，小圆角；点赞用微信红、主按钮与链接用微信绿。无入场动画与浮夸特效，九宫格图片布局；移动端单列、桌面端主 feed + 左右两列。支持暗色模式。

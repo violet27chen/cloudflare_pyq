@@ -1,5 +1,4 @@
 name = "moments-api"
-account_id = "60ca3cd180ada95a860a2270fc12b937"
 main = "worker/src/index.ts"
 compatibility_date = "2025-01-15"
 compatibility_flags = ["nodejs_compat"]
@@ -30,13 +29,12 @@ migrations_dir = "./worker/migrations"
 binding = "BUCKET"
 bucket_name = "moments-images"
 
-# Custom domain: route moments.qiyuan.icu to this Worker.
-# Requires the qiyuan.icu zone to be on Cloudflare; Cloudflare auto-creates
-# the DNS record + TLS certificate on deploy.
-[[routes]]
-pattern = "moments.qiyuan.icu"
-custom_domain = true
+# 自定义域名（可选）：取消下面注释并改成你的域名即可绑定。
+# 前提：该域名的 zone 必须在 Cloudflare 上；部署时会自动建 DNS + TLS。
+# [[routes]]
+# pattern = "moments.yourdomain.com"
+# custom_domain = true
 
-# Required secrets (set with `wrangler secret put <NAME>`):
-#   ADMIN_JWT_SECRET   signs the short-lived author session token
-#   ADMIN_PASSWORD     single author password for POST /api/auth/session
+# 首次部署由 scripts/deploy.mjs 自动创建以下密钥（已存在则跳过，不覆盖）：
+#   ADMIN_JWT_SECRET   签名短期作者会话 token
+#   ADMIN_PASSWORD     后台登录密码（随机生成，部署日志里查看）

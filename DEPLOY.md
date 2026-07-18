@@ -22,32 +22,34 @@ Admin auth is password-based: `POST /api/auth/session` returns a JWT signed with
 
 ## One-click (Deploy to Cloudflare button)
 
-The README badge starts Cloudflare's deploy flow. The repo is a monorepo (the Worker lives in `worker/`), so if the flow doesn't pick up `worker/wrangler.toml`, follow the manual steps below.
+点 README 顶部按钮即走 Cloudflare 部署流程。`wrangler.toml` 在**仓库根目录**，部署脚本 `scripts/deploy.mjs` 会自动创建 D1/R2、应用迁移、并在首次生成后台密码。`pnpm deploy` 即可触发该脚本。
 
 ## Manual deploy
 
 ```bash
-# 1. Clone & install
 git clone https://github.com/violet27chen/cloudflare_pyq
 cd cloudflare_pyq && pnpm install
+pnpm deploy          # 构建前端 + 自动建 D1/R2 + 应用迁移 + 首次生成密码 + 部署
+```
 
-# 2. Create resources
+`pnpm deploy` 调用 `scripts/deploy.mjs`，它会：
+
+- D1 `moments` 不存在则创建，并把 id 写回 `wrangler.toml`；
+- R2 `moments-images` 不存在则创建；
+- `wrangler d1 migrations apply moments --remote` 应用迁移；
+- `ADMIN_JWT_SECRET` / `ADMIN_PASSWORD` **仅在缺失时**随机生成（部署日志打印 `ADMIN_PASSWORD`），已存在则跳过，重部署不覆盖。
+
+如需完全手动（不使用脚本）：
+
+```bash
 wrangler d1 create moments
 wrangler r2 bucket create moments-images
-#   -> copy the D1 database_id into worker/wrangler.toml:
-#      [[d1_databases]] binding = "DB" database_name = "moments" database_id = "<id>"
-
-# 3. Secrets (never commit)
 wrangler secret put ADMIN_JWT_SECRET --name moments-api   # e.g. openssl rand -hex 32
-wrangler secret put ADMIN_PASSWORD --name moments-api     # your admin login password
-
-# 4. Schema + seed (REMOTE D1 — do not omit --remote)
+wrangler secret put ADMIN_PASSWORD --name moments-api     # 你的后台登录密码
 cd worker
 wrangler d1 execute moments --remote --file=./db/schema.sql
 wrangler d1 execute moments --remote --file=./db/seed.sql
-
-# 5. Deploy (builds frontend, then deploys the Worker)
-pnpm deploy
+pnpm build:frontend && wrangler deploy
 ```
 
 ## Verify
