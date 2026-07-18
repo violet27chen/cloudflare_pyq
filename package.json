@@ -19,5 +19,15 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "cloudflare": {
+    "bindings": {
+      "ADMIN_PASSWORD": {
+        "description": "后台 /admin 的登录密码。建议填一个强密码；留空则由部署脚本自动随机生成（密码打印在构建日志中）。"
+      },
+      "ADMIN_JWT_SECRET": {
+        "description": "JWT 会话令牌的签名密钥。建议留空由部署脚本自动生成（相当于 openssl rand -hex 32）；如自填需为随机长字符串。"
+      }
+    }
   }
 }

@@ -39,7 +39,9 @@ pnpm dev:worker
 
 `pnpm deploy` 依次完成：构建前端 → 自动创建 D1 库 `moments`（并把 id 写回 `wrangler.toml`）→ 自动创建 R2 桶 `moments-images` → 应用数据库迁移 → **仅在缺失时**随机生成 `ADMIN_PASSWORD` 与 `ADMIN_JWT_SECRET`（已存在则跳过，重部署不覆盖）→ `wrangler deploy`。生成的 `ADMIN_PASSWORD` 会打印在构建日志里，用它登录 `/admin`。
 
-> ⚠️ **权限注意**：Cloudflare 自动生成的构建令牌默认可能**不包含 D1 写权限**，导致 `wrangler d1 create` 报权限错误。若遇到，请在部署设置的 API Token 处填入你自建的令牌，权限需包含 **D1:Edit、R2:Edit、Workers Scripts:Edit**（或直接用账户级“编辑”令牌）。
+> ⚠️ **权限注意**：Cloudflare 自动生成的构建令牌默认可能**不包含 D1 / R2 / Secrets 写权限**，分别导致 `wrangler d1 create`、`wrangler r2 bucket create`、`wrangler secret put` 报权限错误。若遇到，请在部署设置的 API Token 处填入你自建的令牌，权限需包含 **D1:Edit、R2:Edit、Workers Scripts:Edit、Secrets:Edit**（或直接用账户级“编辑”令牌）。
+>
+> 部署引导的 **Environment variables（环境变量）** 步骤现在会预填 `ADMIN_PASSWORD` 与 `ADMIN_JWT_SECRET` 两个密钥名：留空即可由部署脚本自动生成（密码打印在构建日志），也可直接填入你自己的值（推荐给后台设一个强密码）。
 
 ### 手动部署（等价）
 

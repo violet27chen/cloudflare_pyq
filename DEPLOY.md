@@ -26,7 +26,9 @@ Admin auth is password-based: `POST /api/auth/session` returns a JWT signed with
 
 **关键**：引导里的 Deploy command 默认是 `wrangler deploy`，必须改成 **`pnpm deploy`**（只有 `scripts/deploy.mjs` 才会自动建 D1/R2、应用迁移、首次生成密码）。Build command 填 `pnpm build:frontend`（可选，因为 `pnpm deploy` 内部也会构建前端）。
 
-> ⚠️ Cloudflare 自动生成的构建令牌可能不含 **D1 写权限**。若 `wrangler d1 create` 报权限错误，请在构建设置的 API Token 处填入具备 **D1:Edit、R2:Edit、Workers Scripts:Edit** 的令牌。
+> ⚠️ Cloudflare 自动生成的构建令牌可能不含 **D1 / R2 / Secrets 写权限**。若 `wrangler d1 create` / `wrangler r2 bucket create` / `wrangler secret put` 报权限错误，请在构建设置的 API Token 处填入具备 **D1:Edit、R2:Edit、Workers Scripts:Edit、Secrets:Edit** 的令牌。
+>
+> 部署引导的 **Environment variables** 步骤会预填 `ADMIN_PASSWORD` 与 `ADMIN_JWT_SECRET` 两个密钥名：留空即由部署脚本自动生成，也可直接填入你自己的值。
 
 ## Manual deploy
 

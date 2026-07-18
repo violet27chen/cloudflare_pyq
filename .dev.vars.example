@@ -1,0 +1,10 @@
+# Deploy to Cloudflare 按钮会读取本文件，在部署引导的 Environment variables 步骤里
+# 预填以下密钥名称（变量名请保留）。值可以留空 —— 留空时部署脚本会自动随机生成
+# （ADMIN_PASSWORD 会打印在构建日志，用它登录 /admin）。也可以直接在这里填好值，
+# 部署时直接使用你填的值（推荐给 ADMIN_PASSWORD 设一个自己的强密码）。
+
+# 后台 /admin 登录密码
+ADMIN_PASSWORD=
+
+# JWT 会话令牌签名密钥（留空自动生成；如需自填可用命令：openssl rand -hex 32）
+ADMIN_JWT_SECRET=
