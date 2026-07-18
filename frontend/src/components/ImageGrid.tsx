@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type Dispatch, type SetStateAction } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
-import { X, CaretLeft, CaretRight, Play } from '@phosphor-icons/react';
+import { X, CaretLeft, CaretRight, SpeakerSlash } from '@phosphor-icons/react';
 import type { MediaItem } from '../utils/api';
 
 /**
@@ -68,7 +68,9 @@ export function ImageGrid({ media }: ImageGridProps) {
               <video
                 src={item.url}
                 poster={item.poster_url}
+                autoPlay
                 muted
+                loop
                 playsInline
                 preload="metadata"
                 className="block w-full rounded-[4px] object-contain"
@@ -77,13 +79,7 @@ export function ImageGrid({ media }: ImageGridProps) {
             ) : (
               <img src={item.url} alt="" className="block w-full rounded-[4px] object-cover" />
             )}
-            {wide && (
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white">
-                  <Play weight="fill" size={20} />
-                </span>
-              </span>
-            )}
+            {wide && <MuteBadge />}
             {item.type === 'live' && <LiveBadge />}
           </button>
         </div>
@@ -153,7 +149,9 @@ function MediaThumb({
         <video
           src={item.url}
           poster={item.poster_url}
+          autoPlay
           muted
+          loop
           playsInline
           preload="metadata"
           onLoadedData={() => setLoaded(true)}
@@ -169,13 +167,7 @@ function MediaThumb({
           className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
-      {videoLike && (
-        <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white">
-            <Play weight="fill" size={16} />
-          </span>
-        </span>
-      )}
+      {videoLike && <MuteBadge small />}
       {item.type === 'live' && <LiveBadge />}
       {moreBadge > 0 && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/45">
@@ -183,6 +175,17 @@ function MediaThumb({
         </div>
       )}
     </button>
+  );
+}
+
+/** 静音自动播放角标（右下角，提示这是静音播放的视频）。 */
+function MuteBadge({ small }: { small?: boolean }) {
+  return (
+    <span
+      className={`pointer-events-none absolute bottom-1 right-1 flex items-center justify-center rounded bg-black/55 text-white ${small ? 'h-5 w-5' : 'h-6 w-6'}`}
+    >
+      <SpeakerSlash size={small ? 10 : 12} weight="fill" />
+    </span>
   );
 }
 
@@ -271,7 +274,9 @@ function Lightbox({
   );
 }
 
-/** 灯箱中的单个媒体：图片 / 动图 用 <img>，视频 / 实况 用 <video>。 */
+/** 灯箱中的单个媒体：图片 / 动图 用 <img>，视频 / 实况 用 <video>。
+ *  视频 / 实况 autoPlay + muted + loop + controls：自动播放不被浏览器拦截，
+ *  用户可通过 controls 取消静音。 */
 function LightboxItem({ item }: { item: MediaItem }) {
   if (isVideoLike(item)) {
     return (
@@ -279,9 +284,9 @@ function LightboxItem({ item }: { item: MediaItem }) {
         src={item.url}
         poster={item.poster_url}
         controls
-        autoPlay={item.type === 'live'}
-        loop={item.type === 'live'}
-        muted={item.type === 'live'}
+        autoPlay
+        loop
+        muted
         playsInline
         onClick={(e) => e.stopPropagation()}
         className="max-h-[88vh] max-w-[92vw] rounded-lg bg-black object-contain"
