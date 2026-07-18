@@ -28,9 +28,45 @@ const TOML = resolve(ROOT, 'wrangler.toml');
 const UUID_RE =
   /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
 
-/** Run `pnpm exec wrangler <args>`. Returns {status, out, err}. */
+// Resolve the wrangler binary once. We prefer a direct `wrangler` on PATH
+// (global install + the Deploy-to-Cloudflare environment), then fall back to
+// `pnpm exec wrangler` / `npx wrangler` for repos that pin it locally.
+// shell:true is REQUIRED on Windows so the `wrangler.cmd` shim resolves
+// (spawnSync without a shell returns ENOENT for .cmd binaries).
+function findWrangler() {
+  const candidates = [
+    { bin: 'wrangler', prefix: [] },
+    { bin: 'pnpm', prefix: ['exec', 'wrangler'] },
+    { bin: 'npx', prefix: ['wrangler'] },
+  ];
+  for (const c of candidates) {
+    const r = spawnSync(c.bin, [...c.prefix, '--version'], {
+      shell: true,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    if (r.status === 0) {
+      return c;
+    }
+  }
+  return null;
+}
+
+const WRANGLER = findWrangler();
+if (!WRANGLER) {
+  console.error('✗ 找不到 wrangler 命令。请先安装：');
+  console.error('    npm install -g wrangler   （或  pnpm add -D wrangler）');
+  process.exit(1);
+}
+console.log(
+  '  使用 wrangler 命令：' +
+    (WRANGLER.bin + (WRANGLER.prefix.length ? ' ' + WRANGLER.prefix.join(' ') : '')),
+);
+
+/** Run wrangler via the resolved binary. Returns {status, out, err}. */
 function wrangle(args, opts = {}) {
-  const r = spawnSync('pnpm', ['exec', 'wrangler', ...args], {
+  const r = spawnSync(WRANGLER.bin, [...WRANGLER.prefix, ...args], {
+    shell: true,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
     ...opts,
@@ -53,7 +89,7 @@ if (who.status !== 0) {
   console.error('  请先运行：wrangler login  （确保登录到可写账户 60ca3cd...）');
   process.exit(1);
 } else {
-  console.log('  当前 Cloudflare 账户：' + (who.out || '').trim().split('\n').slice(-3).join(' '));
+  console.log('  当前 Cloudflare 账户：\n' + (who.out || '').trim());
 }
 
 let dbId = null;
