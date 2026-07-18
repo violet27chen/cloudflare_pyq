@@ -44,6 +44,18 @@ function firstUuid(text) {
 }
 
 console.log('→ 准备 D1 数据库 (moments)...');
+
+// 诊断：先确认 wrangler 已登录且账户可用
+const who = wrangle(['whoami']);
+if (who.status !== 0) {
+  console.error('✗ wrangler 未登录或登录失败：');
+  console.error((who.err || who.out || '').trim().split('\n').slice(0, 6).join('\n'));
+  console.error('  请先运行：wrangler login  （确保登录到可写账户 60ca3cd...）');
+  process.exit(1);
+} else {
+  console.log('  当前 Cloudflare 账户：' + (who.out || '').trim().split('\n').slice(-3).join(' '));
+}
+
 let dbId = null;
 
 // Prefer creating it; the output carries the new id. If it already exists,
@@ -51,8 +63,14 @@ let dbId = null;
 const created = wrangle(['d1', 'create', 'moments']);
 dbId = firstUuid(created.out + created.err);
 if (!dbId) {
+  const errLine = (created.err || created.out || '').trim().split('\n')[0];
+  console.log('  (create 跳过: ' + (errLine || '已存在') + ')');
   const listed = wrangle(['d1', 'list']);
   dbId = firstUuid(listed.out + listed.err);
+  if (!dbId) {
+    console.error('  d1 list 也未能获取 id，D1 命令错误输出：');
+    console.error((listed.err || listed.out || '').trim().split('\n').slice(0, 8).join('\n'));
+  }
 }
 if (!dbId) {
   console.error('✗ 无法获取 D1 database id，部署中止。');
