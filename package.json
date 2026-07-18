@@ -20,12 +20,6 @@
   "engines": {
     "node": ">=20"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "workerd"
-    ]
-  },
   "cloudflare": {
     "bindings": {
       "ADMIN_PASSWORD": {

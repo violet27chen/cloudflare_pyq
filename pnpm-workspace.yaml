@@ -2,11 +2,10 @@ packages:
   - 'frontend'
   - 'worker'
 
+# pnpm 11: native build scripts must be explicitly approved here.
+# NOTE: pnpm v10+ removed `onlyBuiltDependencies` (the old package.json key);
+# the current key in pnpm-workspace.yaml is `allowBuilds`.
 allowBuilds:
   sharp: true
-
-# pnpm 11: native build scripts must be explicitly approved here.
-onlyBuiltDependencies:
-  - esbuild
-  - workerd
-  - sharp
+  esbuild: true
+  workerd: true
