@@ -330,6 +330,8 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
   const [avatarProgress, setAvatarProgress] = useState<number | null>(null);
   const [coverProgress, setCoverProgress] = useState<number | null>(null);
   const [modalProgress, setModalProgress] = useState<number | null>(null);
+  const [modalDragging, setModalDragging] = useState(false);
+  const dragDepth = useRef(0);
   const [bgProgress, setBgProgress] = useState<number | null>(null);
 
   // Load data
@@ -422,47 +424,62 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
     [token],
   );
 
-  const handleAddMedia = useCallback(
-    async (type: MediaType, e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      e.target.value = '';
-      if (!files || files.length === 0) return;
+  /* 根据文件 MIME 推断媒体类型（用于粘贴 / 拖拽，用户未显式选按钮时）。
+   * 粘贴/拖入的视频按「实况」处理（自动抓封面，获得微信实况的播放效果）。 */
+  const inferMediaType = useCallback((file: File): MediaType => {
+    if (file.type === 'image/gif') return 'gif';
+    if (file.type.startsWith('image/')) return 'image';
+    if (file.type.startsWith('video/')) return 'live';
+    return 'image';
+  }, []);
 
+  /* 上传单个文件：先放本地乐观预览，上传完成后替换为服务器地址。 */
+  const uploadOneMedia = useCallback(
+    async (type: MediaType, file: File) => {
+      const id = crypto.randomUUID();
+      const previewUrl = URL.createObjectURL(file);
+      setModalMedia((prev) => [...prev, { id, type, url: previewUrl, uploading: true }]);
+      try {
+        let posterUrl: string | undefined;
+        if (type === 'live') {
+          const dataUrl = await extractPoster(file);
+          if (dataUrl) {
+            const posterFile = await dataURLtoFile(dataUrl, `${id}.jpg`);
+            posterUrl = (await uploadMedia(token, posterFile, 'post', setModalProgress)).url;
+          }
+        }
+        const res = await uploadMedia(token, file, 'post', setModalProgress);
+        // 以客户端选定的类型为准（服务器对视频统一回 video，不能用来覆盖「实况」）。
+        setModalMedia((prev) =>
+          prev.map((d) =>
+            d.id === id
+              ? { id, type, url: res.url, poster_url: posterUrl, uploading: false }
+              : d,
+          ),
+        );
+      } catch (err) {
+        setModalMedia((prev) => prev.filter((d) => d.id !== id));
+        URL.revokeObjectURL(previewUrl);
+        throw err;
+      }
+    },
+    [token],
+  );
+
+  /* 批量添加文件。forceType 来自四个显式按钮；粘贴/拖拽不传则按 MIME 推断。 */
+  const addFiles = useCallback(
+    async (files: File[], forceType?: MediaType) => {
       const start = modalMedia.length;
       const remaining = Math.max(0, 9 - start);
-      const toAdd = Array.from(files).slice(0, remaining);
+      const toAdd = files.slice(0, remaining);
       if (toAdd.length === 0) return;
 
       setModalUploading(true);
       setModalProgress(0);
       try {
         for (const file of toAdd) {
-          const id = crypto.randomUUID();
-          const previewUrl = URL.createObjectURL(file);
-          // 先放本地预览，上传完成后替换为服务器地址
-          setModalMedia((prev) => [...prev, { id, type, url: previewUrl, uploading: true }]);
-
-          try {
-            let posterUrl: string | undefined;
-            if (type === 'live') {
-              const dataUrl = await extractPoster(file);
-              if (dataUrl) {
-                const posterFile = await dataURLtoFile(dataUrl, `${id}.jpg`);
-                posterUrl = (await uploadMedia(token, posterFile, 'post')).url;
-              }
-            }
-            const { url } = await uploadMedia(token, file, 'post');
-            setModalMedia((prev) =>
-              prev.map((d) =>
-                d.id === id ? { id, type, url, poster_url: posterUrl, uploading: false } : d,
-              ),
-            );
-          } catch (err) {
-            // 上传失败：移除乐观预览
-            setModalMedia((prev) => prev.filter((d) => d.id !== id));
-            URL.revokeObjectURL(previewUrl);
-            throw err;
-          }
+          const type = forceType ?? inferMediaType(file);
+          await uploadOneMedia(type, file);
         }
       } catch (err) {
         alert(err instanceof Error ? err.message : '媒体上传失败');
@@ -471,7 +488,66 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
         setModalProgress(null);
       }
     },
-    [token, modalMedia.length],
+    [modalMedia.length, uploadOneMedia, inferMediaType],
+  );
+
+  /* 文件选择（四个显式按钮）：clear value 允许重复选同一文件。 */
+  const handleAddMedia = useCallback(
+    (type: MediaType, e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      e.target.value = '';
+      if (!files || files.length === 0) return;
+      addFiles(Array.from(files), type);
+    },
+    [addFiles],
+  );
+
+  /* 粘贴上传：从剪贴板提取图片/动图/视频文件。 */
+  const handleModalPaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const dt = e.clipboardData;
+      if (!dt) return;
+      const files: File[] = [];
+      for (const item of Array.from(dt.items)) {
+        if (item.kind === 'file') {
+          const f = item.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        addFiles(files);
+      }
+    },
+    [addFiles],
+  );
+
+  /* 拖拽上传：用计数避免子元素冒泡导致的 flicker。 */
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepth.current += 1;
+    setModalDragging(true);
+  }, []);
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepth.current -= 1;
+    if (dragDepth.current <= 0) {
+      dragDepth.current = 0;
+      setModalDragging(false);
+    }
+  }, []);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      dragDepth.current = 0;
+      setModalDragging(false);
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) addFiles(Array.from(files));
+    },
+    [addFiles],
   );
 
   const handleRemoveMedia = useCallback((id: string) => {
@@ -1227,7 +1303,26 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={reduce ? undefined : { opacity: 0, scale: 0.95, y: -20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onPaste={handleModalPaste}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
             >
+              {/* 拖拽上传高亮遮罩 */}
+              {modalDragging && (
+                <div
+                  className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-lg"
+                  style={{ backgroundColor: 'color-mix(in srgb, var(--color-accent) 12%, transparent)' }}
+                >
+                  <div
+                    className="rounded-lg border-2 border-dashed px-6 py-4 text-sm font-medium"
+                    style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}
+                  >
+                    松开以上传（图片 / 动图 / 视频 / 实况）
+                  </div>
+                </div>
+              )}
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5" style={{ borderColor: 'var(--line)' }}>
                 <h3 className="text-base font-semibold" style={{ color: 'var(--fg)' }}>
