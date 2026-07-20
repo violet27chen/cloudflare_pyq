@@ -61,9 +61,9 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
     <div className="relative">
       {cover ? (
         <>
-          {/* 封面背景图 — 4:3 比例 + 点击看大图 */}
+          {/* 封面背景图 — 4:3 比例、高度约视口 1/3、居中 */}
           <div
-            className="relative aspect-[4/3] w-full cursor-pointer"
+            className="relative mx-auto aspect-[4/3] h-[33vh] w-auto cursor-pointer"
             onClick={openCover}
             role="button"
             tabIndex={0}
