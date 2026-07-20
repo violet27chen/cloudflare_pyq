@@ -291,6 +291,11 @@ export function uploadImage(
   return uploadMedia(token, file, 'post', onProgress);
 }
 
+/** 判断 URL 是否指向视频（按扩展名；用于封面等只有 URL、无 type 字段的场景）。 */
+export function isVideoUrl(url: string): boolean {
+  return /\.(mp4|webm|mov)(\?.*)?$/i.test(url);
+}
+
 /* ---------- Sidebar (author only) ---------- */
 
 /** GET /api/sidebar (public) */

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X } from '@phosphor-icons/react';
-import { getProfile, type ProfileDTO } from '../utils/api';
+import { getProfile, isVideoUrl, type ProfileDTO } from '../utils/api';
 
 /**
  * 公开个人主页头部 — 全宽封面 + 左下角头像/昵称叠加。
@@ -67,7 +67,7 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
             onClick={openCover}
             role="button"
             tabIndex={0}
-            aria-label="查看背景图大图"
+            aria-label="查看背景大图"
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
@@ -77,32 +77,56 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
           >
             {/* 内层裁剪容器 */}
             <div className="absolute inset-0 overflow-hidden">
-              {/* 模糊底层 */}
-              <img
-                src={cover}
-                alt=""
-                aria-hidden
-                className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
-              />
-              {/* 清晰层：中心清晰、边缘羽化 */}
-              <img
-                src={cover}
-                alt=""
-                className="relative h-full w-full object-cover"
-                style={{
-                  WebkitMaskImage:
-                    'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
-                  maskImage:
-                    'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
-                }}
-              />
-              {/* 底部渐变遮罩 — 让叠加文字可读 */}
-              <div
-                className="absolute inset-x-0 bottom-0 h-24"
-                style={{
-                  background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)',
-                }}
-              />
+              {isVideoUrl(cover) ? (
+                <>
+                  {/* 视频封面：静音自动循环播放 */}
+                  <video
+                    src={cover}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                  {/* 底部渐变遮罩 — 让叠加文字可读 */}
+                  <div
+                    className="absolute inset-x-0 bottom-0 h-24"
+                    style={{
+                      background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)',
+                    }}
+                  />
+                </>
+              ) : (
+                <>
+                  {/* 模糊底层 */}
+                  <img
+                    src={cover}
+                    alt=""
+                    aria-hidden
+                    className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
+                  />
+                  {/* 清晰层：中心清晰、边缘羽化 */}
+                  <img
+                    src={cover}
+                    alt=""
+                    className="relative h-full w-full object-cover"
+                    style={{
+                      WebkitMaskImage:
+                        'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
+                      maskImage:
+                        'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
+                    }}
+                  />
+                  {/* 底部渐变遮罩 — 让叠加文字可读 */}
+                  <div
+                    className="absolute inset-x-0 bottom-0 h-24"
+                    style={{
+                      background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)',
+                    }}
+                  />
+                </>
+              )}
             </div>
 
             {/* 左下角：小头像 + 昵称，叠在封面上 */}
@@ -170,14 +194,14 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
         </>
       )}
 
-      {/* 背景图大图查看（无模糊原图） */}
+      {/* 背景图大图查看（无模糊原图 / 视频可播放） */}
       {showCover && cover && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
           onClick={() => setShowCover(false)}
           role="dialog"
           aria-modal="true"
-          aria-label="背景图大图"
+          aria-label="背景大图"
         >
           <button
             type="button"
@@ -187,12 +211,25 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
           >
             <X size={22} weight="bold" />
           </button>
-          <img
-            src={cover}
-            alt=""
-            className="max-h-[90vh] max-w-[95vw] rounded-lg object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
+          {isVideoUrl(cover) ? (
+            <video
+              src={cover}
+              controls
+              autoPlay
+              loop
+              muted
+              playsInline
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[90vh] max-w-[95vw] rounded-lg object-contain"
+            />
+          ) : (
+            <img
+              src={cover}
+              alt=""
+              className="max-h-[90vh] max-w-[95vw] rounded-lg object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
         </div>
       )}
     </div>

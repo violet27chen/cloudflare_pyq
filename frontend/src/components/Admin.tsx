@@ -9,6 +9,7 @@ import {
   deletePost,
   uploadImage,
   uploadMedia,
+  isVideoUrl,
   fetchPosts,
   getProfile,
   updateProfile,
@@ -929,16 +930,32 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
             </label>
             <div className="flex items-center gap-4">
               <div
-                className="flex h-16 w-24 overflow-hidden rounded-lg border bg-cover bg-center"
+                className="flex h-16 w-24 overflow-hidden rounded-lg border"
                 style={{
                   borderColor: 'var(--line)',
-                  backgroundImage: profileDraft.cover_image_url
-                    ? `url(${profileDraft.cover_image_url})`
-                    : undefined,
                   backgroundColor: 'var(--color-surface-2)',
                 }}
               >
-                {!profileDraft.cover_image_url && (
+                {profileDraft.cover_image_url ? (
+                  isVideoUrl(profileDraft.cover_image_url) ? (
+                    <video
+                      src={profileDraft.cover_image_url}
+                      muted
+                      autoPlay
+                      loop
+                      playsInline
+                      preload="metadata"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="h-full w-full bg-cover bg-center"
+                      style={{
+                        backgroundImage: `url(${profileDraft.cover_image_url})`,
+                      }}
+                    />
+                  )
+                ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs" style={{ color: 'var(--fg-muted)' }}>
                     无封面
                   </div>
@@ -957,12 +974,12 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                 >
                   <input
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"
                     onChange={handleCoverUpload}
                     className="v-hidden"
                     disabled={uploadingCover}
                   />
-                  {uploadingCover ? '上传中...' : '上传封面'}
+                  {uploadingCover ? '上传中...' : '上传封面（图片/视频）'}
                 </label>
                 {profileDraft.cover_image_url && (
                   <button
@@ -980,7 +997,7 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
             <input
               type="url"
               value={profileDraft.cover_image_url}
-              placeholder="或输入图片 URL"
+              placeholder="或输入图片/视频 URL"
               onChange={(e) =>
                 setProfileDraft((p) => ({ ...p, cover_image_url: e.target.value }))
               }
