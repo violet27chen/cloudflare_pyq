@@ -13,7 +13,6 @@
     "@astrojs/react": "^4.1.2",
     "@phosphor-icons/react": "^2.1.7",
     "astro": "^5.1.1",
-    "motion": "^11.15.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",

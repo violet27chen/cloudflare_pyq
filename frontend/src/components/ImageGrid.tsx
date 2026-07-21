@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, type Dispatch, type SetStateAction } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { X, CaretLeft, CaretRight, SpeakerSlash } from '@phosphor-icons/react';
 import type { MediaItem } from '../utils/api';
 
@@ -25,7 +24,6 @@ function isVideoLike(item: MediaItem): boolean {
 }
 
 export function ImageGrid({ media }: ImageGridProps) {
-  const reduce = useReducedMotion();
   const [lb, setLb] = useState<{ index: number; list: MediaItem[] } | null>(null);
 
   useEffect(() => {
@@ -84,7 +82,7 @@ export function ImageGrid({ media }: ImageGridProps) {
           </button>
         </div>
 
-        <Lightbox lb={lb} setLb={setLb} reduce={!!reduce} />
+        <Lightbox lb={lb} setLb={setLb} />
       </div>
     );
   }
@@ -108,7 +106,7 @@ export function ImageGrid({ media }: ImageGridProps) {
         })}
       </div>
 
-      <Lightbox lb={lb} setLb={setLb} reduce={!!reduce} />
+      <Lightbox lb={lb} setLb={setLb} />
     </div>
   );
 }
@@ -201,76 +199,80 @@ function LiveBadge() {
 function Lightbox({
   lb,
   setLb,
-  reduce,
 }: {
   lb: { index: number; list: MediaItem[] } | null;
   setLb: Dispatch<SetStateAction<{ index: number; list: MediaItem[] } | null>>;
-  reduce: boolean;
 }) {
+  // 打开时淡入（CSS 过渡，替代 framer-motion，避免其循环依赖在生产打包下的 TDZ）
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!lb) {
+      setShown(false);
+      return;
+    }
+    const id = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(id);
+  }, [lb]);
+
+  if (!lb) return null;
+
   return (
-    <AnimatePresence>
-      {lb && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          initial={reduce ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setLb(null)}
-          role="dialog"
-          aria-label="媒体预览"
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-200 ${shown ? 'opacity-100' : 'opacity-0'}`}
+      onClick={() => setLb(null)}
+      role="dialog"
+      aria-label="媒体预览"
+    >
+      <button
+        type="button"
+        aria-label="关闭"
+        onClick={(e) => {
+          e.stopPropagation();
+          setLb(null);
+        }}
+        className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+      >
+        <X size={22} weight="bold" />
+      </button>
+
+      {lb.list.length > 1 && (
+        <button
+          type="button"
+          aria-label="上一张"
+          onClick={(e) => {
+            e.stopPropagation();
+            setLb((s) => (s ? { ...s, index: Math.max(0, s.index - 1) } : s));
+          }}
+          className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
         >
-          <button
-            type="button"
-            aria-label="关闭"
-            onClick={(e) => {
-              e.stopPropagation();
-              setLb(null);
-            }}
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-          >
-            <X size={22} weight="bold" />
-          </button>
-
-          {lb.list.length > 1 && (
-            <button
-              type="button"
-              aria-label="上一张"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLb((s) => (s ? { ...s, index: Math.max(0, s.index - 1) } : s));
-              }}
-              className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-            >
-              <CaretLeft size={24} weight="bold" />
-            </button>
-          )}
-
-          {lb.list.length > 1 && (
-            <button
-              type="button"
-              aria-label="下一张"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLb((s) =>
-                  s ? { ...s, index: Math.min(s.list.length - 1, s.index + 1) } : s,
-                );
-              }}
-              className="absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-            >
-              <CaretRight size={24} weight="bold" />
-            </button>
-          )}
-
-          <LightboxItem item={lb.list[lb.index]} />
-
-          {lb.list.length > 1 && (
-            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm text-white">
-              {lb.index + 1} / {lb.list.length}
-            </div>
-          )}
-        </motion.div>
+          <CaretLeft size={24} weight="bold" />
+        </button>
       )}
-    </AnimatePresence>
+
+      {lb.list.length > 1 && (
+        <button
+          type="button"
+          aria-label="下一张"
+          onClick={(e) => {
+            e.stopPropagation();
+            setLb((s) =>
+              s ? { ...s, index: Math.min(s.list.length - 1, s.index + 1) } : s,
+            );
+          }}
+          className="absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+        >
+          <CaretRight size={24} weight="bold" />
+        </button>
+      )}
+
+      <LightboxItem item={lb.list[lb.index]} />
+
+      {lb.list.length > 1 && (
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-sm text-white">
+          {lb.index + 1} / {lb.list.length}
+        </div>
+      )}
+    </div>
   );
 }
 

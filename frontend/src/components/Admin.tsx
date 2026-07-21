@@ -1,7 +1,30 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, useReducedMotion, AnimatePresence } from 'motion/react';
+import { useState, useEffect, useCallback, useRef, type ReactNode, type HTMLAttributes } from 'react';
+
+/**
+ * 轻量淡入容器：挂载后下一帧淡入（替代 framer-motion，避免其循环依赖
+ * 在生产打包下触发 "Cannot access X before initialization" 的 TDZ）。
+ */
+function FadeIn({
+  children,
+  className = '',
+  ...rest
+}: { children?: ReactNode; className?: string } & HTMLAttributes<HTMLDivElement>) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  return (
+    <div
+      className={`transition-opacity duration-200 ${shown ? 'opacity-100' : 'opacity-0'} ${className}`}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
 import {
   exchangeSession,
   createPost,
@@ -150,7 +173,6 @@ interface AdminState {
 }
 
 export function Admin() {
-  const reduce = useReducedMotion();
   const [state, setState] = useState<AdminState>({
     sessionToken: null,
     password: '',
@@ -191,12 +213,7 @@ export function Admin() {
   if (!state.sessionToken) {
     return (
       <div className="mx-auto flex min-h-[100dvh] max-w-[400px] flex-col items-center justify-center px-6">
-        <motion.div
-          className="m-card w-full p-8"
-          initial={reduce ? false : { opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
+        <FadeIn className="m-card w-full p-8">
           <h1
             className="text-xl font-semibold tracking-tight"
             style={{ color: 'var(--fg)' }}
@@ -248,7 +265,7 @@ export function Admin() {
               {state.loading ? '登录中...' : '登 录'}
             </button>
           </form>
-        </motion.div>
+        </FadeIn>
       </div>
     );
   }
@@ -271,7 +288,6 @@ interface DashboardProps {
 }
 
 function AdminDashboard({ token, onLogout }: DashboardProps) {
-  const reduce = useReducedMotion();
   const [posts, setPosts] = useState<PostDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<{
@@ -1314,26 +1330,18 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
       </div>
 
       {/* ==================== MODAL: 编辑/新建帖子 ==================== */}
-      <AnimatePresence>
-        {editModalOpen && (
-          <>
+      {editModalOpen && (
+        <>
             {/* Backdrop */}
-            <motion.div
+            <FadeIn
               className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
               onClick={closeModal}
             />
 
             {/* Modal */}
-            <motion.div
+            <FadeIn
               className="fixed left-1/2 top-8 z-50 w-full max-w-[560px] -translate-x-1/2 overflow-hidden rounded-lg"
               style={{ backgroundColor: 'var(--card)', boxShadow: '0 24px 80px rgba(0,0,0,0.25)' }}
-              initial={reduce ? false : { opacity: 0, scale: 0.95, y: -20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={reduce ? undefined : { opacity: 0, scale: 0.95, y: -20 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               onPaste={handleModalPaste}
               onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
@@ -1512,28 +1520,20 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </FadeIn>
           </>
         )}
-      </AnimatePresence>
 
       {/* ==================== CONFIRM DIALOG: 删除确认 ==================== */}
-      <AnimatePresence>
-        {deleteConfirm && (
-          <>
-            <motion.div
+      {deleteConfirm && (
+        <>
+            <FadeIn
               className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
               onClick={() => setDeleteConfirm(null)}
             />
-            <motion.div
+            <FadeIn
               className="fixed left-1/2 top-1/2 z-[60] w-full max-w-[400px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg p-6"
               style={{ backgroundColor: 'var(--card)', boxShadow: '0 24px 80px rgba(0,0,0,0.25)' }}
-              initial={reduce ? false : { opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={reduce ? undefined : { opacity: 0, scale: 0.9 }}
             >
               <div className="flex items-start gap-4">
                 <div
@@ -1581,10 +1581,9 @@ function AdminDashboard({ token, onLogout }: DashboardProps) {
                   确认删除
                 </button>
               </div>
-            </motion.div>
+            </FadeIn>
           </>
         )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -1615,7 +1614,6 @@ function ColumnManager({
   }) => void;
   onDelete: (id: string) => void;
 }) {
-  const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
   const [textFormat, setTextFormat] = useState<'text' | 'markdown'>('text');
   const [title, setTitle] = useState('');
@@ -1699,10 +1697,8 @@ function ColumnManager({
       </div>
 
       {open && (
-        <motion.div
+        <div
           className="space-y-4 rounded-md border p-4"
-          initial={reduce ? false : { opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
           style={{
             borderColor: 'var(--line)',
             backgroundColor: 'var(--color-surface-2)',
@@ -1904,7 +1900,7 @@ function ColumnManager({
           >
             {saving ? '添加中...' : `添加到${label}`}
           </button>
-        </motion.div>
+        </div>
       )}
 
       {items.length > 0 ? (
