@@ -20,11 +20,6 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
   const [coverLoaded, setCoverLoaded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // 封面 URL 变化时重置加载态，避免上一帧残留
-  useEffect(() => {
-    setCoverLoaded(false);
-  }, [cover]);
-
   useEffect(() => {
     // 若由父级传入 profile，则以其为准；否则自行拉取一次。
     if (propProfile !== undefined) {
@@ -59,6 +54,11 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
   const avatar = profile.avatar_url;
   const cover = profile.cover_image_url;
   const bio = profile.bio;
+
+  // 封面 URL 变化时重置加载态，避免上一帧残留
+  useEffect(() => {
+    setCoverLoaded(false);
+  }, [cover]);
 
   const openCover = () => {
     if (cover) setShowCover(true);

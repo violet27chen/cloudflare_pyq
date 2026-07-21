@@ -5,6 +5,7 @@ import { PostCard } from './PostCard';
 import { ProfileHeader } from './ProfileHeader';
 import { NoteBlank } from '@phosphor-icons/react';
 import { FeedSkeleton } from './PostSkeleton';
+import { Markdown } from './Markdown';
 import { useVisitorId } from '../hooks/useVisitorId';
 import {
   fetchPosts,
@@ -250,12 +251,12 @@ function SidebarCard({ item }: { item: SidebarItemDTO }) {
   // 文本块
   const textBlock = hasText ? (
     isMarkdown ? (
-      <div
-        className="text-sm leading-relaxed prose-headings:font-semibold prose-p:text-[var(--fg-soft)] prose-a:text-[var(--color-accent)]"
-        style={{ color: 'var(--fg-soft)' }}
-      >
-        <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{text}</ReactMarkdown>
-      </div>
+        <div
+          className="text-sm leading-relaxed prose-headings:font-semibold prose-p:text-[var(--fg-soft)] prose-a:text-[var(--color-accent)]"
+          style={{ color: 'var(--fg-soft)' }}
+        >
+          <Markdown content={text} />
+        </div>
     ) : (
       <p
         className="whitespace-pre-wrap text-sm leading-relaxed"
@@ -295,7 +296,3 @@ function SidebarCard({ item }: { item: SidebarItemDTO }) {
     </div>
   );
 }
-
-// Lazy import ReactMarkdown for sidebar markdown rendering
-import ReactMarkdown from 'react-markdown';
-import rehypeSanitize from 'rehype-sanitize';

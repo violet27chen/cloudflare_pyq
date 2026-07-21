@@ -1,9 +1,8 @@
 'use client';
 
-import ReactMarkdown from 'react-markdown';
-import rehypeSanitize from 'rehype-sanitize';
 import { ImageGrid } from './ImageGrid';
 import { LikeButton } from './LikeButton';
+import { Markdown } from './Markdown';
 import { formatRelative } from '../utils/time';
 import type { PostDTO } from '../utils/api';
 
@@ -60,14 +59,10 @@ export function PostCard({ post, visitorId, index, authorName, authorAvatar }: P
         </div>
 
         {/* Content — 支持 Markdown 渲染 */}
-        <div
-          className="mt-4 text-[15px] leading-relaxed prose-headings:font-semibold prose-headings:text-[var(--fg)] prose-p:text-[var(--fg)] prose-a:text-[var(--color-accent)] prose-a:no-underline hover:prose-a:underline prose-strong:text-[var(--fg)] prose-code:text-[var(--fg-soft)] prose-code:bg-[var(--card-2)] prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-code:text-sm prose-li:text-[var(--fg)] prose-blockquote:border-l-[var(--color-accent)] prose-blockquote:text-[var(--fg-muted)]"
-          style={{ color: 'var(--fg)', maxWidth: '65ch' }}
-        >
-          <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
-            {post.content}
-          </ReactMarkdown>
-        </div>
+        <Markdown
+          content={post.content}
+          className="mt-4 max-w-[65ch] text-[15px] leading-relaxed prose-headings:font-semibold prose-headings:text-[var(--fg)] prose-p:text-[var(--fg)] prose-a:text-[var(--color-accent)] prose-a:no-underline hover:prose-a:underline prose-strong:text-[var(--fg)] prose-code:text-[var(--fg-soft)] prose-code:bg-[var(--card-2)] prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-code:text-sm prose-li:text-[var(--fg)] prose-blockquote:border-l-[var(--color-accent)] prose-blockquote:text-[var(--fg-muted)]"
+        />
 
         {/* Images / media */}
         <ImageGrid
