@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X } from '@phosphor-icons/react';
 import { getProfile, isVideoUrl, type ProfileDTO } from '../utils/api';
 
@@ -17,6 +17,13 @@ import { getProfile, isVideoUrl, type ProfileDTO } from '../utils/api';
 export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO | null }) {
   const [profile, setProfile] = useState<ProfileDTO | null>(propProfile ?? null);
   const [showCover, setShowCover] = useState(false);
+  const [coverLoaded, setCoverLoaded] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // 封面 URL 变化时重置加载态，避免上一帧残留
+  useEffect(() => {
+    setCoverLoaded(false);
+  }, [cover]);
 
   useEffect(() => {
     // 若由父级传入 profile，则以其为准；否则自行拉取一次。
@@ -80,14 +87,18 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
             <div className="absolute inset-0 overflow-hidden">
               {isVideoUrl(cover) ? (
                 <>
-                  {/* 视频封面：静音自动循环播放 */}
+                  {/* 视频封面：先显示第一帧静态图（preload 后浏览器自动呈现），
+                      整段可播放(onCanPlay)后才开始静音循环播放 */}
                   <video
+                    ref={videoRef}
                     src={cover}
-                    autoPlay
                     muted
                     loop
                     playsInline
-                    preload="metadata"
+                    preload="auto"
+                    onCanPlay={() => {
+                      videoRef.current?.play().catch(() => {});
+                    }}
                     className="absolute inset-0 h-full w-full object-cover"
                   />
                   {/* 底部渐变遮罩 — 让叠加文字可读 */}
@@ -105,13 +116,15 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
                     src={cover}
                     alt=""
                     aria-hidden
-                    className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
+                    onLoad={() => setCoverLoaded(true)}
+                    className={`absolute inset-0 h-full w-full scale-110 object-cover blur-xl transition-opacity duration-700 ${coverLoaded ? 'opacity-100' : 'opacity-0'}`}
                   />
                   {/* 清晰层：中心清晰、边缘羽化 */}
                   <img
                     src={cover}
                     alt=""
-                    className="relative h-full w-full object-cover"
+                    onLoad={() => setCoverLoaded(true)}
+                    className={`relative h-full w-full object-cover transition-opacity duration-700 ${coverLoaded ? 'opacity-100' : 'opacity-0'}`}
                     style={{
                       WebkitMaskImage:
                         'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
