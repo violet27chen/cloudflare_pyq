@@ -114,27 +114,6 @@ export function Feed() {
 
   // --- Render states ---
 
-  if (loading) {
-    return <FeedSkeleton count={3} />;
-  }
-
-  if (error) {
-    return (
-      <div className="m-card p-8 text-center">
-          <p className="text-[15px]" style={{ color: 'var(--fg-muted)' }}>
-            {error}
-          </p>
-          <button
-            type="button"
-            onClick={loadInitial}
-            className="m-btn-primary mt-4 px-5 py-2 text-sm"
-          >
-            重试
-          </button>
-        </div>
-    );
-  }
-
   // 主内容区：无动态时显示空状态卡片；有动态时显示列表
   const feedBody =
     posts.length === 0 ? (
@@ -212,10 +191,28 @@ export function Feed() {
 
         {/* 主内容区 — 中间列：封面 + 主区域内容 + 动态列表 */}
         <div className="min-w-0 flex-1 space-y-4">
-          {/* 个人主页头部（朋友圈风格）— 无论有无动态都先显示封面区域 */}
-          {profile && <ProfileHeader profile={profile} />}
+          {/* 个人主页头部（朋友圈风格）— 始终渲染封面区，
+              即使 profile 尚未加载也会预留位置，由预加载脚本在 hydration 前填入封面图 */}
+          <ProfileHeader profile={profile} />
 
-          {feedBody}
+          {loading ? (
+            <FeedSkeleton count={3} />
+          ) : error ? (
+            <div className="m-card p-8 text-center">
+              <p className="text-[15px]" style={{ color: 'var(--fg-muted)' }}>
+                {error}
+              </p>
+              <button
+                type="button"
+                onClick={loadInitial}
+                className="m-btn-primary mt-4 px-5 py-2 text-sm"
+              >
+                重试
+              </button>
+            </div>
+          ) : (
+            feedBody
+          )}
         </div>
 
         {/* 右侧列 — 仅桌面端显示 */}

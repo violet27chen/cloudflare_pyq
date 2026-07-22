@@ -46,13 +46,12 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
     return () => window.removeEventListener('keydown', onKey);
   }, [showCover]);
 
-  // 加载中（profile 为 null）时不渲染任何占位名，避免闪现 "L."
-  if (!profile) return null;
-
-  const name = profile.display_name ?? '';
-  const avatar = profile.avatar_url;
-  const cover = profile.cover_image_url;
-  const bio = profile.bio;
+  // 始终渲染（即使 profile 尚未加载也保留封面容器位置，
+  // 由预加载脚本在 hydration 前填入封面图，消除空白窗口）
+  const name = profile?.display_name ?? '';
+  const avatar = profile?.avatar_url;
+  const cover = profile?.cover_image_url ?? '';
+  const bio = profile?.bio ?? '';
 
   const openCover = () => {
     if (cover) setShowCover(true);
@@ -60,125 +59,98 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
 
   return (
     <div className="relative">
-      {cover ? (
-        <>
-          {/* 封面背景图 — 宽扁横幅（参考微信朋友圈 ~2.5:1），宽度跟随主内容区 */}
-          <div
-            className="relative w-full cursor-pointer"
-            style={{ aspectRatio: '2.5 / 1' }}
-            onClick={openCover}
-            role="button"
-            tabIndex={0}
-            aria-label="查看背景大图"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                openCover();
-              }
-            }}
-          >
-            {/* 内层裁剪容器 — 加载前以页面背景色兜底，避免透明露出下方空白 */}
-            <div
-              className="absolute inset-0 overflow-hidden"
-              style={{ backgroundColor: 'var(--bg)' }}
-            >
-              {isVideoUrl(cover) ? (
-                <>
-                  {/* 视频封面：直接显示，preload 后浏览器自动呈现首帧，可播放即静音循环播放 */}
-                  <video
-                    ref={videoRef}
-                    src={cover}
-                    muted
-                    loop
-                    playsInline
-                    preload="auto"
-                    onCanPlay={() => {
-                      videoRef.current?.play().catch(() => {});
-                    }}
-                    className="absolute inset-0 h-full w-full object-cover"
-                  />
-                  {/* 底部渐变遮罩 — 让叠加文字可读 */}
-                  <div
-                    className="absolute inset-x-0 bottom-0 h-24"
-                    style={{
-                      background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)',
-                    }}
-                  />
-                </>
-              ) : (
-                <>
-                  {/* 模糊底层 */}
-                  <img
-                    src={cover}
-                    alt=""
-                    aria-hidden
-                    className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
-                  />
-                  {/* 清晰层：中心清晰、边缘羽化 */}
-                  <img
-                    src={cover}
-                    alt=""
-                    className="relative h-full w-full object-cover"
-                    style={{
-                      WebkitMaskImage:
-                        'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
-                      maskImage:
-                        'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
-                    }}
-                  />
-                  {/* 底部渐变遮罩 — 让叠加文字可读 */}
-                  <div
-                    className="absolute inset-x-0 bottom-0 h-24"
-                    style={{
-                      background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)',
-                    }}
-                  />
-                </>
-              )}
-            </div>
-
-            {/* 左下角：小头像 + 昵称，叠在封面上 */}
-            <div className="absolute bottom-4 left-5 flex items-center gap-2.5">
-              <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 text-sm font-bold sm:h-11 sm:w-11"
-                style={{
-                  borderColor: 'rgba(255,255,255,0.7)',
-                  backgroundColor: 'var(--color-surface)',
-                  color: 'var(--fg-muted)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      {/* 封面背景图 — 宽扁横幅（参考微信朋友圈 ~2.5:1），宽度跟随主内容区。
+          容器始终渲染：profile 未加载时显示页面背景色兜底，预加载脚本在 hydration 前将图片填入 #cover-img */}
+      <div
+        className="relative w-full cursor-pointer"
+        style={{ aspectRatio: '2.5 / 1' }}
+        onClick={openCover}
+        role="button"
+        tabIndex={0}
+        aria-label="查看背景大图"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openCover();
+          }
+        }}
+      >
+        {/* 内层裁剪容器 — 预加载脚本注入封面图的挂载点；
+            suppressHydrationWarning 容忍 hydration 前由脚本设置 #cover-img 的 src */}
+        <div
+          id="cover-media"
+          className="absolute inset-0 overflow-hidden"
+          style={{ backgroundColor: 'var(--bg)' }}
+          suppressHydrationWarning
+        >
+          {cover ? (
+            isVideoUrl(cover) ? (
+              <video
+                ref={videoRef}
+                src={cover}
+                muted
+                loop
+                playsInline
+                preload="auto"
+                onCanPlay={() => {
+                  videoRef.current?.play().catch(() => {});
                 }}
-              >
-                {avatar ? (
-                  <img src={avatar} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  (name ? name.charAt(0) : '')
-                )}
-              </div>
-              <span
-                className="text-base font-semibold tracking-tight drop-shadow-sm sm:text-lg"
-                style={{ color: '#fff' }}
-              >
-                {name}
-              </span>
-            </div>
-          </div>
-          {bio && (
-            <p className="px-5 pt-3 text-sm leading-relaxed" style={{ color: 'var(--bio)' }}>
-              {bio}
-            </p>
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              <>
+                {/* 模糊底层（同时作为预加载占位，hydration 前由脚本设置 src） */}
+                <img
+                  id="cover-img"
+                  src={cover}
+                  alt=""
+                  aria-hidden
+                  suppressHydrationWarning
+                  className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
+                />
+                {/* 清晰层：中心清晰、边缘羽化 */}
+                <img
+                  src={cover}
+                  alt=""
+                  className="relative h-full w-full object-cover"
+                  style={{
+                    WebkitMaskImage:
+                      'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
+                    maskImage:
+                      'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
+                  }}
+                />
+              </>
+            )
+          ) : (
+            /* 占位层：profile 未加载时仅占位，src 由预加载脚本填入 */
+            <img
+              id="cover-img"
+              alt=""
+              aria-hidden
+              suppressHydrationWarning
+              className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
+            />
           )}
-        </>
-      ) : (
-        <>
-          {/* 无背景图：仅显示一行头像 + 名字 */}
-          <div className="flex items-center justify-start gap-2.5 px-4 py-3">
+        </div>
+
+        {/* 底部渐变遮罩 — 让叠加文字可读 */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-24"
+          style={{
+            background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)',
+          }}
+        />
+
+        {/* 左下角：小头像 + 昵称，叠在封面上 */}
+        <div className="absolute bottom-4 left-5 flex items-center gap-2.5">
           <div
             className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 text-sm font-bold sm:h-11 sm:w-11"
             style={{
-              borderColor: 'var(--line)',
+              borderColor: 'rgba(255,255,255,0.7)',
               backgroundColor: 'var(--color-surface)',
               color: 'var(--fg-muted)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             }}
           >
             {avatar ? (
@@ -188,18 +160,18 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
             )}
           </div>
           <span
-            className="text-base font-semibold tracking-tight sm:text-lg"
-            style={{ color: 'var(--fg)' }}
+            className="text-base font-semibold tracking-tight drop-shadow-sm sm:text-lg"
+            style={{ color: '#fff' }}
           >
             {name}
           </span>
         </div>
-        {bio && (
-          <p className="px-4 pt-1 text-sm leading-relaxed" style={{ color: 'var(--bio)' }}>
-            {bio}
-          </p>
-        )}
-        </>
+      </div>
+
+      {bio && (
+        <p className="px-5 pt-3 text-sm leading-relaxed" style={{ color: 'var(--bio)' }}>
+          {bio}
+        </p>
       )}
 
       {/* 背景图大图查看（无模糊原图 / 视频可播放） */}
