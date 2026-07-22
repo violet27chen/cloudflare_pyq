@@ -83,8 +83,11 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
               }
             }}
           >
-            {/* 内层裁剪容器 */}
-            <div className="absolute inset-0 overflow-hidden">
+            {/* 内层裁剪容器 — 浅灰占位底色，媒体加载完成前显示，消除空白闪烁 */}
+            <div
+              className="absolute inset-0 overflow-hidden"
+              style={{ backgroundColor: '#d8d8d8' }}
+            >
               {isVideoUrl(cover) ? (
                 <>
                   {/* 视频封面：先显示第一帧静态图（preload 后浏览器自动呈现），
@@ -97,9 +100,10 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
                     playsInline
                     preload="auto"
                     onCanPlay={() => {
+                      setCoverLoaded(true);
                       videoRef.current?.play().catch(() => {});
                     }}
-                    className="absolute inset-0 h-full w-full object-cover"
+                    className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${coverLoaded ? 'opacity-100' : 'opacity-0'}`}
                   />
                   {/* 底部渐变遮罩 — 让叠加文字可读 */}
                   <div
