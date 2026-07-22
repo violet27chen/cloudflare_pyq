@@ -24,6 +24,7 @@ const {
     <meta name="theme-color" content="#0e0e10" media="(prefers-color-scheme: dark)" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
+    <slot name="head" />
   </head>
   <body>
     <ThemeApplier client:load />

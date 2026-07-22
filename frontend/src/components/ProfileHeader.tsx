@@ -77,8 +77,11 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
               }
             }}
           >
-            {/* 内层裁剪容器 */}
-            <div className="absolute inset-0 overflow-hidden">
+            {/* 内层裁剪容器 — 加载前以页面背景色兜底，避免透明露出下方空白 */}
+            <div
+              className="absolute inset-0 overflow-hidden"
+              style={{ backgroundColor: 'var(--bg)' }}
+            >
               {isVideoUrl(cover) ? (
                 <>
                   {/* 视频封面：直接显示，preload 后浏览器自动呈现首帧，可播放即静音循环播放 */}

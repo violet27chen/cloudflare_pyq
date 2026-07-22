@@ -5,6 +5,28 @@ import '../styles/global.css';
 ---
 
 <BaseLayout>
+  <Fragment slot="head">
+    {/* 封面预加载：HTML 解析阶段即拉取 profile 并预热封面图，
+        使其与页面 JS/CSS 并行下载，缩短 React hydration 完成前的空白窗口 */}
+    <script is:inline>
+      (function () {
+        try {
+          fetch('/api/profile', { headers: { Accept: 'application/json' } })
+            .then(function (r) { return r && r.ok ? r.json() : null; })
+            .then(function (data) {
+              if (!data || !data.cover_image_url) return;
+              var url = data.cover_image_url;
+              if (/\.(mp4|webm|mov)(\?.*)?$/i.test(url)) return; // 视频不预热，避免浪费带宽
+              var img = new Image();
+              img.decoding = 'async';
+              img.src = url;
+            })
+            .catch(function () {});
+        } catch (e) {}
+      })();
+    </script>
+  </Fragment>
+
   <!-- Sticky glass header -->
   <header class="m-glass sticky top-0 z-40">
     <div class="mx-auto flex h-14 max-w-[1200px] items-center justify-between px-4">
