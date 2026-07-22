@@ -17,7 +17,6 @@ import { getProfile, isVideoUrl, type ProfileDTO } from '../utils/api';
 export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO | null }) {
   const [profile, setProfile] = useState<ProfileDTO | null>(propProfile ?? null);
   const [showCover, setShowCover] = useState(false);
-  const [coverLoaded, setCoverLoaded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -55,11 +54,6 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
   const cover = profile.cover_image_url;
   const bio = profile.bio;
 
-  // 封面 URL 变化时重置加载态，避免上一帧残留
-  useEffect(() => {
-    setCoverLoaded(false);
-  }, [cover]);
-
   const openCover = () => {
     if (cover) setShowCover(true);
   };
@@ -83,15 +77,11 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
               }
             }}
           >
-            {/* 内层裁剪容器 — 浅灰占位底色，媒体加载完成前显示，消除空白闪烁 */}
-            <div
-              className="absolute inset-0 overflow-hidden"
-              style={{ backgroundColor: '#d8d8d8' }}
-            >
+            {/* 内层裁剪容器 */}
+            <div className="absolute inset-0 overflow-hidden">
               {isVideoUrl(cover) ? (
                 <>
-                  {/* 视频封面：先显示第一帧静态图（preload 后浏览器自动呈现），
-                      整段可播放(onCanPlay)后才开始静音循环播放 */}
+                  {/* 视频封面：直接显示，preload 后浏览器自动呈现首帧，可播放即静音循环播放 */}
                   <video
                     ref={videoRef}
                     src={cover}
@@ -100,10 +90,9 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
                     playsInline
                     preload="auto"
                     onCanPlay={() => {
-                      setCoverLoaded(true);
                       videoRef.current?.play().catch(() => {});
                     }}
-                    className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${coverLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    className="absolute inset-0 h-full w-full object-cover"
                   />
                   {/* 底部渐变遮罩 — 让叠加文字可读 */}
                   <div
@@ -120,15 +109,13 @@ export function ProfileHeader({ profile: propProfile }: { profile?: ProfileDTO |
                     src={cover}
                     alt=""
                     aria-hidden
-                    onLoad={() => setCoverLoaded(true)}
-                    className={`absolute inset-0 h-full w-full scale-110 object-cover blur-xl transition-opacity duration-700 ${coverLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    className="absolute inset-0 h-full w-full scale-110 object-cover blur-xl"
                   />
                   {/* 清晰层：中心清晰、边缘羽化 */}
                   <img
                     src={cover}
                     alt=""
-                    onLoad={() => setCoverLoaded(true)}
-                    className={`relative h-full w-full object-cover transition-opacity duration-700 ${coverLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    className="relative h-full w-full object-cover"
                     style={{
                       WebkitMaskImage:
                         'radial-gradient(ellipse 88% 88% at 50% 50%, #000 68%, transparent 100%)',
